@@ -20,6 +20,7 @@ const makeSteps = (journeyId: string, currentIndex: number, pendenciasMap: Recor
     consultasVinculadas: [] as string[],
     examesVinculados: [] as string[],
     tarefasVinculadas: [] as string[],
+    questionariosVinculados: [] as string[],
   }));
 
 // Build journeys with rich step-level pendencies
