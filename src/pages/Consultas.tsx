@@ -1,13 +1,24 @@
+import { useState } from 'react';
 import { mockAppointments } from '@/data/mock-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Consultas() {
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterProf, setFilterProf] = useState('all');
+
   const today = mockAppointments.filter(a => a.data === '2025-04-15');
-  const upcoming = mockAppointments.filter(a => a.data > '2025-04-15');
+  const professionals = [...new Set(mockAppointments.map(a => a.profissional))];
+
+  const filtered = mockAppointments.filter(a => {
+    const matchStatus = filterStatus === 'all' || a.status === filterStatus;
+    const matchProf = filterProf === 'all' || a.profissional === filterProf;
+    return matchStatus && matchProf;
+  });
 
   return (
     <div className="space-y-6">
@@ -20,7 +31,7 @@ export default function Consultas() {
       </div>
 
       {/* Today */}
-      <Card>
+      <Card className="border-l-2 border-l-primary bg-gradient-to-r from-primary/[0.03] to-transparent">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> Hoje — 15/04/2025</CardTitle>
         </CardHeader>
@@ -35,7 +46,7 @@ export default function Consultas() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusChip status={a.status} />
-                    {a.status === 'agendada' && <Button variant="outline" size="sm" className="h-7 text-xs">Iniciar</Button>}
+                    {a.status === 'agendada' && <Button size="sm" className="h-7 text-xs">Iniciar</Button>}
                   </div>
                 </div>
               ))}
@@ -44,9 +55,34 @@ export default function Consultas() {
         </CardContent>
       </Card>
 
+      {/* Filters */}
+      <div className="flex gap-3 flex-wrap">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-[150px] h-9">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="agendada">Agendada</SelectItem>
+            <SelectItem value="realizada">Realizada</SelectItem>
+            <SelectItem value="faltou">Faltou</SelectItem>
+            <SelectItem value="reagendada">Reagendada</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterProf} onValueChange={setFilterProf}>
+          <SelectTrigger className="w-[200px] h-9">
+            <SelectValue placeholder="Profissional" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os profissionais</SelectItem>
+            {professionals.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* All appointments */}
       <div className="rounded-xl border border-border overflow-hidden">
-        <Table>
+        <Table className="table-premium">
           <TableHeader>
             <TableRow>
               <TableHead>Data</TableHead>
@@ -58,7 +94,7 @@ export default function Consultas() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockAppointments.map(a => (
+            {filtered.map(a => (
               <TableRow key={a.id}>
                 <TableCell className="text-sm">{a.data}</TableCell>
                 <TableCell className="text-sm">{a.hora}</TableCell>

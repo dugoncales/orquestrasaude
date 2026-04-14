@@ -31,7 +31,6 @@ export default function DashboardProfissional() {
   const { toast } = useToast();
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
-  // Data computations
   const criticalAlerts = mockAlerts.filter(a => !a.lido && a.severidade === 'critical');
   const clinicalAlerts = mockAlerts.filter(a => !a.lido && a.tipo === 'clinico');
   const operationalAlerts = mockAlerts.filter(a => !a.lido && a.tipo === 'operacional');
@@ -91,64 +90,70 @@ export default function DashboardProfissional() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard title="Precisam de Ação" value={patientsNeedAction.length} icon={Activity} subtitle="fora da meta" />
-        <KPICard title="Consultas Hoje" value={todayAppointments.length} icon={Calendar} subtitle="agendadas" />
-        <KPICard title="Tarefas do Dia" value={dayTasks.length} icon={ListChecks} subtitle={`${mockTasks.filter(t => t.status === 'atrasada').length} atrasadas`} />
-        <KPICard title="Faltosos" value={faltosos.length} icon={Clock} subtitle="busca ativa" />
+      <div>
+        <p className="section-label">Visão Geral</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <KPICard title="Precisam de Ação" value={patientsNeedAction.length} icon={Activity} subtitle="fora da meta" accentColor="destructive" />
+          <KPICard title="Consultas Hoje" value={todayAppointments.length} icon={Calendar} subtitle="agendadas" accentColor="info" />
+          <KPICard title="Tarefas do Dia" value={dayTasks.length} icon={ListChecks} subtitle={`${mockTasks.filter(t => t.status === 'atrasada').length} atrasadas`} accentColor="warning" />
+          <KPICard title="Faltosos" value={faltosos.length} icon={Clock} subtitle="busca ativa" accentColor="destructive" />
+        </div>
       </div>
 
-      {/* Alerts: Clinical vs Operational */}
+      {/* Alerts */}
       {(clinicalAlerts.length > 0 || operationalAlerts.length > 0) && (
-        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-          {clinicalAlerts.length > 0 && (
-            <Card className="border-[hsl(var(--destructive))]/20">
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-xs flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
-                  <HeartPulse className="h-3.5 w-3.5 text-[hsl(var(--destructive))]" /> Alertas Clínicos
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
-                {clinicalAlerts.map(a => (
-                  <div
-                    key={a.id}
-                    className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-1 transition-colors"
-                    onClick={() => a.patientId && navigate(`/pacientes/${a.patientId}`)}
-                  >
-                    <Stethoscope className="h-3.5 w-3.5 text-[hsl(var(--destructive))] mt-0.5 flex-shrink-0" />
-                    <div>
-                      {a.patientName && <p className="font-semibold text-foreground">{a.patientName}</p>}
-                      <p className="text-muted-foreground">{a.mensagem}</p>
+        <div>
+          <p className="section-label">Alertas</p>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+            {clinicalAlerts.length > 0 && (
+              <Card className="border-[hsl(var(--destructive))]/20 card-elevated">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-xs flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
+                    <HeartPulse className="h-3.5 w-3.5 text-[hsl(var(--destructive))]" /> Alertas Clínicos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 space-y-2">
+                  {clinicalAlerts.map(a => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-1 transition-colors"
+                      onClick={() => a.patientId && navigate(`/pacientes/${a.patientId}`)}
+                    >
+                      <Stethoscope className="h-3.5 w-3.5 text-[hsl(var(--destructive))] mt-0.5 flex-shrink-0" />
+                      <div>
+                        {a.patientName && <p className="font-semibold text-foreground">{a.patientName}</p>}
+                        <p className="text-muted-foreground">{a.mensagem}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-          {operationalAlerts.length > 0 && (
-            <Card className="border-[hsl(var(--warning))]/20">
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-xs flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
-                  <Settings className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> Alertas Operacionais
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
-                {operationalAlerts.map(a => (
-                  <div
-                    key={a.id}
-                    className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-1 transition-colors"
-                    onClick={() => a.patientId && navigate(`/pacientes/${a.patientId}`)}
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))] mt-0.5 flex-shrink-0" />
-                    <div>
-                      {a.patientName && <p className="font-semibold text-foreground">{a.patientName}</p>}
-                      <p className="text-muted-foreground">{a.mensagem}</p>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+            {operationalAlerts.length > 0 && (
+              <Card className="border-[hsl(var(--warning))]/20 card-elevated">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-xs flex items-center gap-1.5 uppercase tracking-wider text-muted-foreground">
+                    <Settings className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> Alertas Operacionais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 space-y-2">
+                  {operationalAlerts.map(a => (
+                    <div
+                      key={a.id}
+                      className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded-lg p-2 -mx-1 transition-colors"
+                      onClick={() => a.patientId && navigate(`/pacientes/${a.patientId}`)}
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))] mt-0.5 flex-shrink-0" />
+                      <div>
+                        {a.patientName && <p className="font-semibold text-foreground">{a.patientName}</p>}
+                        <p className="text-muted-foreground">{a.mensagem}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       )}
 
@@ -227,100 +232,101 @@ export default function DashboardProfissional() {
         </Card>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        {/* Pacientes Prioritários */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="h-4 w-4 text-[hsl(var(--destructive))]" /> Pacientes Prioritários
-              </CardTitle>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/pacientes')}>
-                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {patientsNeedAction.map(p => {
-              const outGoals = p.goals.filter(g => isOutOfTarget(g));
-              const pJourney = mockJourneys.find(j => j.patientId === p.id);
-              const currentStepName = pJourney ? pJourney.steps[pJourney.currentStepIndex]?.name : '';
-
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2.5 -mx-1 transition-colors"
-                  onClick={() => navigate(`/jornada-clinica?paciente=${p.id}`)}
-                >
-                  <RiskSemaphore level={p.riskLevel} score={p.scoreRisco} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-foreground">{p.nome}</p>
-                      {p.diasSemRetorno && p.diasSemRetorno > 20 && (
-                        <span className="text-[10px] bg-[hsl(var(--status-pending-bg))] text-[hsl(var(--status-pending))] rounded-full px-2 py-0.5">
-                          {p.diasSemRetorno}d sem retorno
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">
-                      Etapa: {currentStepName} · {p.linhasAtivas.map(l => careLines.find(cl => cl.id === l)?.name.split(' ')[0]).join(', ')}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {outGoals.map(g => (
-                        <span key={g.field} className="text-[10px] font-medium bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))] rounded px-1.5 py-0.5">
-                          {g.label}: {g.currentValue}{g.unit}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {/* Sidebar: Funnel + Faltosos */}
-        <div className="space-y-4">
-          {/* Funil */}
-          <Card>
+      <div>
+        <p className="section-label">Pacientes & Jornadas</p>
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+          {/* Pacientes Prioritários */}
+          <Card className="lg:col-span-2">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Funil de Jornadas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <JourneyFunnel compact />
-            </CardContent>
-          </Card>
-
-          {/* Faltosos */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Phone className="h-4 w-4 text-[hsl(var(--status-waiting))]" /> Faltosos — Busca Ativa
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-[hsl(var(--destructive))]" /> Pacientes Prioritários
+                </CardTitle>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/pacientes')}>
+                  Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {faltosos.length === 0 && <p className="text-xs text-muted-foreground">Nenhum faltoso</p>}
-              {faltosos.map(a => (
-                <div key={a.id} className="flex items-center gap-3 text-xs">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{a.patientName}</p>
-                    <p className="text-muted-foreground">{a.tipo} · {a.data}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] gap-1"
-                    onClick={() => {
-                      toast({ title: 'Busca ativa iniciada', description: `Contato com ${a.patientName}` });
-                    }}
+              {patientsNeedAction.map(p => {
+                const outGoals = p.goals.filter(g => isOutOfTarget(g));
+                const pJourney = mockJourneys.find(j => j.patientId === p.id);
+                const currentStepName = pJourney ? pJourney.steps[pJourney.currentStepIndex]?.name : '';
+
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2.5 -mx-1 transition-colors"
+                    onClick={() => navigate(`/jornada-clinica?paciente=${p.id}`)}
                   >
-                    <Phone className="h-3 w-3" /> Busca
-                  </Button>
-                </div>
-              ))}
+                    <RiskSemaphore level={p.riskLevel} score={p.scoreRisco} showLabel={false} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-foreground">{p.nome}</p>
+                        {p.diasSemRetorno && p.diasSemRetorno > 20 && (
+                          <span className="text-[10px] bg-[hsl(var(--status-pending-bg))] text-[hsl(var(--status-pending))] rounded-full px-2 py-0.5">
+                            {p.diasSemRetorno}d sem retorno
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Etapa: {currentStepName} · {p.linhasAtivas.map(l => careLines.find(cl => cl.id === l)?.name.split(' ')[0]).join(', ')}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {outGoals.map(g => (
+                          <span key={g.field} className="text-[10px] font-medium bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))] rounded px-1.5 py-0.5">
+                            {g.label}: {g.currentValue}{g.unit}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
+
+          {/* Sidebar: Funnel + Faltosos */}
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Funil de Jornadas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <JourneyFunnel compact />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-[hsl(var(--status-waiting))]" /> Faltosos — Busca Ativa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {faltosos.length === 0 && <p className="text-xs text-muted-foreground">Nenhum faltoso</p>}
+                {faltosos.map(a => (
+                  <div key={a.id} className="flex items-center gap-3 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground">{a.patientName}</p>
+                      <p className="text-muted-foreground">{a.tipo} · {a.data}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] gap-1"
+                      onClick={() => {
+                        toast({ title: 'Busca ativa iniciada', description: `Contato com ${a.patientName}` });
+                      }}
+                    >
+                      <Phone className="h-3 w-3" /> Busca
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
