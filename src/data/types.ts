@@ -106,6 +106,7 @@ export interface CareLine {
   examesPadrao: CareLineExame[];
   automacoes: CareLineAutomacao[];
   alertas: CareLineAlerta[];
+  indicadoresBI?: { nome: string; formula: string; tipo: string }[];
 }
 
 export interface ClinicalParameter {
