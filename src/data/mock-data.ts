@@ -161,6 +161,21 @@ export const mockAIInsights = [
   { id: 'ai4', tipo: 'operacional', mensagem: 'Linha de Obesidade tem a menor taxa de adesão (65%) — avaliar engajamento e barreiras de acesso.', severidade: 'warning' as const },
 ];
 
+export const mockAutomationRules: import('./types').AutomationRule[] = [
+  { id: 'ar1', name: 'HbA1c fora da meta', condition: 'HbA1c > 9%', actions: ['Criar tarefa urgente para profissional de referência', 'Notificar gestor da linha'], active: true, careLineId: 'diabetes' },
+  { id: 'ar2', name: 'Falta em consulta', condition: 'Status consulta = "faltou"', actions: ['Gerar busca ativa automática', 'Agendar contato telefônico em 48h'], active: true },
+  { id: 'ar3', name: 'PROM não respondido (7 dias)', condition: 'Questionário pendente > 7 dias', actions: ['Enviar lembrete ao paciente', 'Notificar enfermeiro responsável'], active: true },
+  { id: 'ar4', name: 'Sem retorno há 15 dias', condition: 'Dias sem retorno > 15 em etapa ativa', actions: ['Alerta operacional ao gestor', 'Criar tarefa de follow-up'], active: true },
+  { id: 'ar5', name: 'PA crítica', condition: 'PAS > 180 ou PAD > 110', actions: ['Alerta clínico urgente', 'Escalar para médico plantonista'], active: false, careLineId: 'hipertensao' },
+];
+
+export const mockPermissionsMatrix: Record<string, Record<string, boolean>> = {
+  admin: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: true, IA: true, Studio: true, Editor: true },
+  manager: { Dashboard: true, Pacientes: true, Jornadas: false, 'Linhas de Cuidado': true, Consultas: false, Exames: false, Questionários: false, BI: true, IA: true, Studio: false, Editor: false },
+  professional: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: true, IA: true, Studio: false, Editor: false },
+  patient: { Dashboard: true, Pacientes: false, Jornadas: false, 'Linhas de Cuidado': false, Consultas: true, Exames: true, Questionários: true, BI: false, IA: false, Studio: false, Editor: false },
+};
+
 export const mockQuestionnaireResponses: QuestionnaireResponse[] = [
   { id: 'qr1', questionnaireId: 'q1', patientId: 'p1', patientName: 'Maria da Silva Santos', score: 62, maxScore: 100, data: '2025-03-15', status: 'respondido', careLineId: 'diabetes' },
   { id: 'qr2', questionnaireId: 'q2', patientId: 'p1', patientName: 'Maria da Silva Santos', score: 78, maxScore: 100, data: '2025-03-15', status: 'respondido', careLineId: 'diabetes' },
