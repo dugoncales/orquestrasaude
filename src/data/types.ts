@@ -57,6 +57,38 @@ export interface Patient {
   diasSemRetorno?: number;
 }
 
+export interface CareLineMeta {
+  parametro: string;
+  operador: string;
+  valor: number;
+  unidade: string;
+}
+
+export interface CareLineTarefa {
+  nome: string;
+  responsavel: string;
+  etapa: string;
+  compartilhada?: boolean;
+}
+
+export interface CareLineExame {
+  nome: string;
+  frequencia: string;
+  etapa: string;
+}
+
+export interface CareLineAutomacao {
+  condicao: string;
+  acao: string;
+  ativa: boolean;
+}
+
+export interface CareLineAlerta {
+  condicao: string;
+  severidade: 'warning' | 'critical';
+  mensagem: string;
+}
+
 export interface CareLine {
   id: string;
   name: string;
@@ -67,6 +99,13 @@ export interface CareLine {
   prems: string[];
   patientCount: number;
   avgAdherence: number;
+  criteriosInclusao: string[];
+  criteriosSaida: string[];
+  metas: CareLineMeta[];
+  tarefasPadrao: CareLineTarefa[];
+  examesPadrao: CareLineExame[];
+  automacoes: CareLineAutomacao[];
+  alertas: CareLineAlerta[];
 }
 
 export interface ClinicalParameter {
