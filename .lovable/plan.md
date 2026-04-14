@@ -1,71 +1,34 @@
 
 
-# Plano: Editor No-Code de Linhas de Cuidado — Builder Profissional
+# Plano: Corrigir Clipping Visual na Timeline da Jornada Clínica
 
-O `EditorNoCode.tsx` atual e um mock estático com lista de blocos e preview fixo. Reescrever completamente como um builder interativo com gestao completa de linhas de cuidado.
+## Problema
 
----
+A timeline interativa (ZONA B) tem elementos cortados:
+- Badge "ETAPA ATUAL" usa `absolute -top-3` e é cortado pelo container
+- Linha conectora usa `absolute top-6` sem contribuir para altura do pai
+- `overflow-x-auto` no wrapper corta elementos que excedem no eixo Y
+- Container interno com `min-w-max` não garante espaço vertical
 
-## Arquitetura
+## Mudanças em `src/pages/JornadaClinica.tsx`
 
-Layout em 3 paineis: **sidebar de linhas** (lista/criar/duplicar) + **area central com tabs de configuracao** + **preview da jornada** (colapsavel).
+### Wrapper da timeline (linhas 250-251)
+- Trocar `overflow-x-auto` por `overflow-x-auto overflow-y-visible`
+- Adicionar `pt-6 pb-2` ao container scrollável para dar espaço ao badge "ETAPA ATUAL" acima e aos cards abaixo
 
----
+### Container flex interno (linha 251)
+- Adicionar `pt-5 pb-2` ao `div.flex.items-start` para garantir que o badge com `-top-3` não fique fora da área visível
 
-## Mudancas
+### Linha conectora (linha 253)
+- Manter `absolute` mas ajustar `top` para acompanhar o padding extra adicionado
 
-### 1. `src/pages/EditorNoCode.tsx` — Reescrever completamente
+### Badge "ETAPA ATUAL" (linhas 284-290)
+- Ajustar de `-top-3` para `-top-5` ou equivalente, compatível com o padding adicionado
+- Garantir que `whitespace-nowrap` e `z-10` mantenham visibilidade
 
-**Sidebar esquerda (painel de linhas)**
-- Lista das 6 linhas existentes (de `careLines`) com icone e cor
-- Botao "Nova Linha" — cria linha em branco com campos vazios
-- Botao "Duplicar" em cada linha — clona dados da linha selecionada
-- Click seleciona a linha para edicao
-- Linha selecionada destacada
+## Arquivo
 
-**Area central — 10 tabs de configuracao**
-Cada tab edita uma dimensao da `CareLine` selecionada:
-
-1. **Geral**: nome, icone (selector), cor (color picker simples)
-2. **Etapas da Jornada**: lista editavel de etapas (adicionar, remover, reordenar) — usa `defaultSteps` como template
-3. **Criterios**: inclusao e saida — listas editaveis com input + botao adicionar
-4. **Parametros Clinicos**: lista editavel de parametros vinculados a linha
-5. **Metas**: tabela editavel com parametro, operador (dropdown), valor, unidade
-6. **PROMs/PREMs**: listas separadas, editaveis — adicionar/remover itens
-7. **Tarefas**: lista com nome, responsavel, etapa, toggle compartilhada
-8. **Exames**: lista com nome, frequencia, etapa
-9. **Automacoes**: lista com condicao (text), acao (text), toggle ativo
-10. **Alertas**: lista com condicao, severidade (dropdown warning/critical), mensagem
-
-Cada tab com layout limpo: titulo, descricao curta, lista de itens com acoes inline (editar/remover), botao "Adicionar" no final.
-
-**Painel direito — Preview da Jornada**
-- Preview visual das etapas configuradas (vertical, com numeracao)
-- Indicadores resumidos: total de metas, tarefas, exames, automacoes ativas, alertas
-- Colapsavel para dar mais espaco a area central
-- Badge de contagem por secao
-
-**Indicadores de BI** (tab 10 — bonus)
-- Nao existe no tipo atual. Adicionar campo `indicadoresBI: { nome: string; formula: string; tipo: string }[]` ao tipo CareLine em `types.ts`
-- Tab permite definir indicadores customizados por linha
-
-**Estado local**
-- Tudo gerenciado com `useState` — nao persiste (mock)
-- Inicializa com copia dos dados de `careLines`
-- Edicoes atualizam estado local imediatamente
-- Toast de confirmacao em acoes (salvar, duplicar, deletar)
-
-### 2. `src/data/types.ts` — Adicionar campo
-
-Adicionar ao `CareLine`:
-- `indicadoresBI?: { nome: string; formula: string; tipo: string }[]`
-
----
-
-## Arquivos
-
-| Arquivo | Acao |
+| Arquivo | Ação |
 |---|---|
-| `src/pages/EditorNoCode.tsx` | Reescrever — builder completo com 3 paineis e 10 tabs |
-| `src/data/types.ts` | Adicionar `indicadoresBI` ao `CareLine` |
+| `src/pages/JornadaClinica.tsx` | Ajustar classes CSS na ZONA B (linhas 247-323) |
 
