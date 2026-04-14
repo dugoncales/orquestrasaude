@@ -87,21 +87,18 @@ export default function StudioAdmin() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-foreground">CareJourney Studio</h1>
+        <h1 className="text-xl font-bold text-foreground">HealthBit Studio</h1>
         <p className="text-xs text-muted-foreground">Configuração e administração da plataforma</p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard title="Usuários Ativos" value={mockUsers.length} icon={Users} />
-        <KPICard title="Linhas de Cuidado" value={careLines.length} icon={GitBranch} />
-        <KPICard title="Regras de Automação" value={mockAutomationRules.length} icon={Zap} />
-        <KPICard title="Parâmetros Clínicos" value={parameterDictionary.length} icon={FlaskConical} />
+        <KPICard title="Usuários Ativos" value={mockUsers.length} icon={Users} accentColor="primary" />
+        <KPICard title="Linhas de Cuidado" value={careLines.length} icon={GitBranch} accentColor="info" />
+        <KPICard title="Regras de Automação" value={mockAutomationRules.length} icon={Zap} accentColor="warning" />
+        <KPICard title="Parâmetros Clínicos" value={parameterDictionary.length} icon={FlaskConical} accentColor="success" />
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="users">
         <ScrollArea className="w-full">
           <TabsList className="w-max">
@@ -117,13 +114,12 @@ export default function StudioAdmin() {
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
 
-        {/* TAB 1: Usuários */}
         <TabsContent value="users" className="mt-4">
           <div className="flex justify-end mb-3">
             <Button size="sm" className="gap-1" onClick={() => toast.success('Formulário de novo usuário aberto')}><Plus className="h-4 w-4" /> Novo Usuário</Button>
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
+            <Table className="table-premium">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
@@ -159,12 +155,11 @@ export default function StudioAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 2: Permissões */}
         <TabsContent value="permissions" className="mt-4">
           <p className="text-xs text-muted-foreground mb-3">Matriz de acesso por perfil — controle quais módulos cada role pode acessar.</p>
           <ScrollArea className="w-full">
             <div className="rounded-xl border border-border overflow-hidden min-w-[600px]">
-              <Table>
+              <Table className="table-premium">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-28">Módulo</TableHead>
@@ -192,7 +187,6 @@ export default function StudioAdmin() {
           </ScrollArea>
         </TabsContent>
 
-        {/* TAB 3: Linhas de Cuidado */}
         <TabsContent value="carelines" className="mt-4">
           <div className="flex justify-end mb-3">
             <Button size="sm" className="gap-1" onClick={() => toast.success('Nova linha de cuidado criada')}><Plus className="h-4 w-4" /> Nova Linha</Button>
@@ -222,7 +216,7 @@ export default function StudioAdmin() {
                     {isExpanded && (
                       <div className="mt-4 pt-3 border-t border-border space-y-3">
                         <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Parâmetros Clínicos</p>
+                          <p className="section-label">Parâmetros Clínicos</p>
                           <div className="flex flex-wrap gap-1">
                             {line.clinicalParameters.map(p => {
                               const param = parameterDictionary.find(pd => pd.field === p);
@@ -231,13 +225,13 @@ export default function StudioAdmin() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">PROMs</p>
+                          <p className="section-label">PROMs</p>
                           <div className="flex flex-wrap gap-1">
                             {line.proms.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split('_').join(' ')}</Badge>)}
                           </div>
                         </div>
                         <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">PREMs</p>
+                          <p className="section-label">PREMs</p>
                           <div className="flex flex-wrap gap-1">
                             {line.prems.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split('_').join(' ')}</Badge>)}
                           </div>
@@ -251,13 +245,12 @@ export default function StudioAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 4: Etapas da Jornada */}
         <TabsContent value="steps" className="mt-4">
           <div className="flex justify-end mb-3">
             <Button size="sm" className="gap-1" onClick={() => toast.success('Nova etapa adicionada')}><Plus className="h-4 w-4" /> Nova Etapa</Button>
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
+            <Table className="table-premium">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
@@ -286,7 +279,6 @@ export default function StudioAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 5: Parâmetros Clínicos */}
         <TabsContent value="params" className="mt-4">
           <div className="flex flex-wrap gap-1.5 mb-3">
             {paramGroups.map(g => (
@@ -304,7 +296,7 @@ export default function StudioAdmin() {
             ))}
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
+            <Table className="table-premium">
               <TableHeader>
                 <TableRow>
                   <TableHead>Campo</TableHead>
@@ -335,7 +327,6 @@ export default function StudioAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 6: Questionários */}
         <TabsContent value="questionnaires" className="mt-4">
           <div className="grid gap-3">
             {careLines.map(line => {
@@ -350,7 +341,7 @@ export default function StudioAdmin() {
                     <div className="space-y-2">
                       {line.proms.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">PROMs</p>
+                          <p className="section-label">PROMs</p>
                           <div className="flex flex-wrap gap-1.5">
                             {line.proms.map(p => (
                               <div key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted border border-border">
@@ -364,7 +355,7 @@ export default function StudioAdmin() {
                       )}
                       {line.prems.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">PREMs</p>
+                          <p className="section-label">PREMs</p>
                           <div className="flex flex-wrap gap-1.5">
                             {line.prems.map(p => (
                               <div key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted border border-border">
@@ -384,7 +375,6 @@ export default function StudioAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 7: Alertas e Automações */}
         <TabsContent value="automations" className="mt-4">
           <div className="flex justify-end mb-3">
             <Button size="sm" className="gap-1" onClick={() => toast.success('Nova regra de automação criada')}><Plus className="h-4 w-4" /> Nova Regra</Button>
@@ -421,10 +411,9 @@ export default function StudioAdmin() {
           </div>
         </TabsContent>
 
-        {/* TAB 8: Auditoria */}
         <TabsContent value="audit" className="mt-4">
           <div className="rounded-xl border border-border overflow-hidden">
-            <Table>
+            <Table className="table-premium">
               <TableHeader>
                 <TableRow>
                   <TableHead>Data/Hora</TableHead>
