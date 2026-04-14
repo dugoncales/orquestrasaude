@@ -40,7 +40,6 @@ const menuByRole = {
     { title: 'Linhas de Cuidado', url: '/linhas-de-cuidado', icon: GitBranch },
     { title: 'Editor No-Code', url: '/editor', icon: Blocks },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3 },
-    { title: 'Configurações', url: '/configuracoes', icon: Settings },
   ],
 };
 
