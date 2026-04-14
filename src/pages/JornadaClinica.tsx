@@ -247,10 +247,10 @@ export default function JornadaClinica() {
       <div className="space-y-3">
         <JourneyProgressBar steps={journey.steps} currentIndex={journey.currentStepIndex} />
 
-        <div className="overflow-x-auto pb-3 -mx-1 px-1">
-          <div className="flex items-start gap-0 min-w-max relative">
+        <div className="overflow-x-auto overflow-y-visible pt-6 pb-3 -mx-1 px-1">
+          <div className="flex items-start gap-0 min-w-max relative pt-1 pb-2">
             {/* Connector line */}
-            <div className="absolute top-6 left-6 right-6 h-0.5 bg-border z-0" />
+            <div className="absolute top-7 left-6 right-6 h-0.5 bg-border z-0" />
 
             {journey.steps.map((step, i) => {
               const Icon = statusIcons[step.status];
