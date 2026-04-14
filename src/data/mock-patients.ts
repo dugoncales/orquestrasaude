@@ -12,6 +12,13 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['Sedentarismo', 'Histórico familiar DCV'], historicoFamiliar: ['Pai: IAM aos 55a', 'Mãe: DM2'],
     tabagismo: false, etilismo: false, atividadeFisica: 'sedentario',
     linhasAtivas: ['diabetes', 'hipertensao', 'obesidade'], riskLevel: 'alto', scoreRisco: 82,
+    diasSemRetorno: 12,
+    goals: [
+      { field: 'hba1c', label: 'HbA1c', target: 7, operator: '<', currentValue: 7.9, unit: '%', careLineId: 'diabetes' },
+      { field: 'ldl', label: 'LDL', target: 100, operator: '<', currentValue: 145, unit: 'mg/dL', careLineId: 'diabetes' },
+      { field: 'peso', label: 'Peso', target: 82, operator: '<', currentValue: 88, unit: 'kg', careLineId: 'obesidade' },
+      { field: 'pas', label: 'PAS', target: 130, operator: '<', currentValue: 128, unit: 'mmHg', careLineId: 'hipertensao' },
+    ],
   },
   {
     id: 'p2', nome: 'José Carlos Oliveira', sexo: 'M', dataNascimento: '1972-08-22', cpf: '234.567.890-11',
@@ -24,6 +31,11 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['Tabagismo pregresso', 'Estresse laboral'], historicoFamiliar: ['Mãe: HAS'],
     tabagismo: false, etilismo: false, atividadeFisica: 'leve',
     linhasAtivas: ['hipertensao', 'dislipidemia'], riskLevel: 'moderado', scoreRisco: 58,
+    diasSemRetorno: 5,
+    goals: [
+      { field: 'pas', label: 'PAS', target: 130, operator: '<', currentValue: 148, unit: 'mmHg', careLineId: 'hipertensao' },
+      { field: 'ldl', label: 'LDL', target: 100, operator: '<', currentValue: 132, unit: 'mg/dL', careLineId: 'dislipidemia' },
+    ],
   },
   {
     id: 'p3', nome: 'Ana Paula Ferreira', sexo: 'F', dataNascimento: '1988-11-05', cpf: '345.678.901-22',
@@ -36,6 +48,11 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['Isolamento social', 'Carga de trabalho excessiva'], historicoFamiliar: ['Irmã: depressão'],
     tabagismo: false, etilismo: false, atividadeFisica: 'leve',
     linhasAtivas: ['saude_mental'], riskLevel: 'alto', scoreRisco: 75,
+    diasSemRetorno: 22,
+    goals: [
+      { field: 'phq9', label: 'PHQ-9', target: 10, operator: '<', currentValue: 18, unit: 'pts', careLineId: 'saude_mental' },
+      { field: 'gad7', label: 'GAD-7', target: 8, operator: '<', currentValue: 14, unit: 'pts', careLineId: 'saude_mental' },
+    ],
   },
   {
     id: 'p4', nome: 'Roberto Almeida Lima', sexo: 'M', dataNascimento: '1955-06-30', cpf: '456.789.012-33',
@@ -48,6 +65,12 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['DRC progressiva', 'Retinopatia'], historicoFamiliar: ['Pai: DM2 + amputação'],
     tabagismo: false, etilismo: false, atividadeFisica: 'sedentario',
     linhasAtivas: ['diabetes', 'hipertensao', 'dislipidemia'], riskLevel: 'critico', scoreRisco: 94,
+    diasSemRetorno: 3,
+    goals: [
+      { field: 'hba1c', label: 'HbA1c', target: 7.5, operator: '<', currentValue: 9.5, unit: '%', careLineId: 'diabetes' },
+      { field: 'albuminuria', label: 'Albuminúria', target: 30, operator: '<', currentValue: 320, unit: 'mg/g', careLineId: 'diabetes' },
+      { field: 'ldl', label: 'LDL', target: 70, operator: '<', currentValue: 98, unit: 'mg/dL', careLineId: 'dislipidemia' },
+    ],
   },
   {
     id: 'p5', nome: 'Fernanda Costa Ribeiro', sexo: 'F', dataNascimento: '1990-01-12', cpf: '567.890.123-44',
@@ -60,6 +83,10 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['Exposição a alérgenos'], historicoFamiliar: ['Mãe: asma'],
     tabagismo: false, etilismo: false, atividadeFisica: 'moderado',
     linhasAtivas: ['asma'], riskLevel: 'moderado', scoreRisco: 45,
+    diasSemRetorno: 35,
+    goals: [
+      { field: 'act', label: 'ACT', target: 20, operator: '>=', currentValue: 16, unit: 'pts', careLineId: 'asma' },
+    ],
   },
   {
     id: 'p6', nome: 'Carlos Eduardo Pinto', sexo: 'M', dataNascimento: '1980-04-18', cpf: '678.901.234-55',
@@ -72,6 +99,12 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['IMC > 40', 'Apneia grave'], historicoFamiliar: ['Pai: obesidade + DM2'],
     tabagismo: false, etilismo: false, atividadeFisica: 'sedentario',
     linhasAtivas: ['obesidade', 'diabetes'], riskLevel: 'alto', scoreRisco: 78,
+    diasSemRetorno: 18,
+    goals: [
+      { field: 'peso', label: 'Peso', target: 110, operator: '<', currentValue: 128, unit: 'kg', careLineId: 'obesidade' },
+      { field: 'imc', label: 'IMC', target: 35, operator: '<', currentValue: 42.3, unit: 'kg/m²', careLineId: 'obesidade' },
+      { field: 'hba1c', label: 'HbA1c', target: 7, operator: '<', currentValue: 7.8, unit: '%', careLineId: 'diabetes' },
+    ],
   },
   {
     id: 'p7', nome: 'Luciana Mendes Barros', sexo: 'F', dataNascimento: '1975-09-25', cpf: '789.012.345-66',
@@ -84,6 +117,10 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['Sobrepeso', 'Sedentarismo'], historicoFamiliar: ['Mãe: HAS + DM2'],
     tabagismo: false, etilismo: false, atividadeFisica: 'leve',
     linhasAtivas: ['hipertensao'], riskLevel: 'baixo', scoreRisco: 32,
+    diasSemRetorno: 8,
+    goals: [
+      { field: 'pas', label: 'PAS', target: 130, operator: '<', currentValue: 126, unit: 'mmHg', careLineId: 'hipertensao' },
+    ],
   },
   {
     id: 'p8', nome: 'Pedro Henrique Souza', sexo: 'M', dataNascimento: '1960-12-08', cpf: '890.123.456-77',
@@ -96,5 +133,11 @@ export const mockPatients: Patient[] = [
     fatoresRisco: ['DRC avançada', 'ICC', 'Idade > 60'], historicoFamiliar: ['Pai: IAM fatal aos 62a'],
     tabagismo: false, etilismo: false, atividadeFisica: 'sedentario',
     linhasAtivas: ['diabetes', 'hipertensao'], riskLevel: 'critico', scoreRisco: 96,
+    diasSemRetorno: 28,
+    goals: [
+      { field: 'hba1c', label: 'HbA1c', target: 8, operator: '<', currentValue: 8.9, unit: '%', careLineId: 'diabetes' },
+      { field: 'pas', label: 'PAS', target: 130, operator: '<', currentValue: 152, unit: 'mmHg', careLineId: 'hipertensao' },
+      { field: 'tfg', label: 'TFG', target: 45, operator: '>', currentValue: 38, unit: 'mL/min', careLineId: 'diabetes' },
+    ],
   },
 ];

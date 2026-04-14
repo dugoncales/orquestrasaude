@@ -13,6 +13,16 @@ export type TaskStatus = 'pendente' | 'em_andamento' | 'concluida' | 'cancelada'
 export type RiskLevel = 'baixo' | 'moderado' | 'alto' | 'critico';
 export type AppointmentStatus = 'agendada' | 'realizada' | 'faltou' | 'cancelada' | 'reagendada';
 
+export interface PatientGoal {
+  field: string;
+  label: string;
+  target: number;
+  operator: '<' | '>' | '<=' | '>=' | '=';
+  currentValue: number;
+  unit: string;
+  careLineId: string;
+}
+
 export interface Patient {
   id: string;
   nome: string;
@@ -30,7 +40,6 @@ export interface Patient {
   profissionalReferencia: string;
   dataEntrada: string;
   statusCadastral: 'ativo' | 'inativo' | 'transferido';
-  // Clinical
   diagnosticosAtivos: string[];
   condicoesAssociadas: string[];
   alergias: string[];
@@ -44,6 +53,8 @@ export interface Patient {
   riskLevel: RiskLevel;
   scoreRisco: number;
   avatar?: string;
+  goals: PatientGoal[];
+  diasSemRetorno?: number;
 }
 
 export interface CareLine {
@@ -75,6 +86,9 @@ export interface JourneyStep {
   prazo?: string;
   pendencias: string[];
   dataConclusao?: string;
+  consultasVinculadas?: string[];
+  examesVinculados?: string[];
+  tarefasVinculadas?: string[];
 }
 
 export interface Journey {
@@ -98,6 +112,7 @@ export interface Appointment {
   status: AppointmentStatus;
   careLineId?: string;
   observacoes?: string;
+  journeyStepId?: string;
 }
 
 export interface Exam {
@@ -110,6 +125,7 @@ export interface Exam {
   status: 'solicitado' | 'coletado' | 'resultado_disponivel' | 'atrasado';
   resultado?: string;
   careLineId?: string;
+  journeyStepId?: string;
 }
 
 export interface Task {
@@ -123,6 +139,7 @@ export interface Task {
   status: TaskStatus;
   careLineId?: string;
   prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
+  journeyStepId?: string;
 }
 
 export interface Alert {
