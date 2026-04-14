@@ -1,34 +1,40 @@
 
 
-# Plano: Corrigir Clipping Visual na Timeline da Jornada Clínica
+# Plano: BI Assistencial — 3 Camadas Completas
 
-## Problema
+Reescrever `src/pages/BI.tsx` com dados derivados dos mocks existentes (patients, journeys, appointments, exams, tasks, questionnaires, parameter records) em vez de dados estáticos.
 
-A timeline interativa (ZONA B) tem elementos cortados:
-- Badge "ETAPA ATUAL" usa `absolute -top-3` e é cortado pelo container
-- Linha conectora usa `absolute top-6` sem contribuir para altura do pai
-- `overflow-x-auto` no wrapper corta elementos que excedem no eixo Y
-- Container interno com `min-w-max` não garante espaço vertical
+---
 
-## Mudanças em `src/pages/JornadaClinica.tsx`
+## Mudanças em `src/pages/BI.tsx`
 
-### Wrapper da timeline (linhas 250-251)
-- Trocar `overflow-x-auto` por `overflow-x-auto overflow-y-visible`
-- Adicionar `pt-6 pb-2` ao container scrollável para dar espaço ao badge "ETAPA ATUAL" acima e aos cards abaixo
+### Operacional (7 KPIs + 2 gráficos)
+- **KPIs**: Pacientes por etapa (distribuição), Consultas pendentes, Exames pendentes, Questionários pendentes, Faltosos (status "faltou"), SLA médio de retorno (dias sem retorno), Produtividade por profissional (consultas/profissional)
+- **Gráfico 1**: BarChart — pacientes por etapa da jornada (10 etapas no eixo X, contagem no Y)
+- **Gráfico 2**: BarChart horizontal — produtividade por profissional (nome no Y, consultas+tarefas no X)
 
-### Container flex interno (linha 251)
-- Adicionar `pt-5 pb-2` ao `div.flex.items-start` para garantir que o badge com `-top-3` não fique fora da área visível
+### Clínico (8 KPIs + 3 gráficos)
+- **KPIs**: % na meta HbA1c, % PA controlada, Perda ponderal média, % LDL na meta, PHQ-9 médio, ACT médio, PROMs respondidos, PREMs respondidos
+- **Gráfico 1**: LineChart — evolução HbA1c ao longo do tempo (dados de parameterRecords)
+- **Gráfico 2**: LineChart — evolução PHQ-9
+- **Gráfico 3**: BarChart — % na meta por parâmetro (hba1c, pas, ldl, peso, phq9, act)
 
-### Linha conectora (linha 253)
-- Manter `absolute` mas ajustar `top` para acompanhar o padding extra adicionado
+### Executivo (7 KPIs + 2 gráficos + 1 tabela)
+- **KPIs**: Coortes ativas, Linhas mais ativas (por pacientes), Taxa de conclusão de jornada, Risco agregado (distribuição), Gargalos operacionais (etapa com mais atrasos), Desempenho por unidade, Prioridades de intervenção (pacientes críticos)
+- **Gráfico 1**: AreaChart — conclusão de jornadas vs risco ao longo do tempo
+- **Gráfico 2**: PieChart/BarChart — distribuição de risco (baixo/moderado/alto/crítico)
+- **Tabela**: Top 5 prioridades de intervenção (paciente, risco, motivo)
 
-### Badge "ETAPA ATUAL" (linhas 284-290)
-- Ajustar de `-top-3` para `-top-5` ou equivalente, compatível com o padding adicionado
-- Garantir que `whitespace-nowrap` e `z-10` mantenham visibilidade
+### Computação de dados
+- Importar todos os mocks e computar indicadores em tempo real com `useMemo`
+- Derivar contagens, percentuais e médias dos dados existentes
+- Usar `Legend` do Recharts para identificar séries
+
+---
 
 ## Arquivo
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/JornadaClinica.tsx` | Ajustar classes CSS na ZONA B (linhas 247-323) |
+| `src/pages/BI.tsx` | Reescrever — 3 tabs completas com dados derivados dos mocks |
 
