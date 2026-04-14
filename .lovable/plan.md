@@ -1,71 +1,66 @@
 
 
-# Plano: Studio Admin — Plataforma No-Code Profissional
+# Plano: Módulo Linhas de Cuidado — Configuração Completa por Patologia
 
-O `StudioAdmin` atual é uma tela simples com 3 tabs (usuários, auditoria, configurações genéricas). O `EditorNoCode` existe separado mas é básico. Vamos unificar tudo numa experiência de studio profissional com tabs ricas cobrindo todas as áreas de configuração.
+O `LinhasDeCuidado.tsx` atual é um grid simples de cards. O `CareLine` type só tem parâmetros, PROMs, PREMs e contadores. Precisamos expandir o modelo de dados e criar uma interface rica de detalhamento por linha, com todas as dimensões clínicas e operacionais solicitadas.
 
 ---
 
 ## Mudanças
 
-### 1. `StudioAdmin.tsx` — Reescrever completamente
+### 1. `src/data/types.ts` — Expandir `CareLine`
+
+Adicionar ao tipo `CareLine`:
+- `criteriosInclusao: string[]` — critérios clínicos para entrada na linha
+- `criteriosSaida: string[]` — critérios para alta/saída
+- `metas: { parametro: string; operador: string; valor: number; unidade: string }[]` — metas clínicas da linha
+- `tarefasPadrao: { nome: string; responsavel: string; etapa: string; compartilhada?: boolean }[]` — tarefas padrão (flag compartilhada para evitar duplicidade cross-linha)
+- `examesPadrao: { nome: string; frequencia: string; etapa: string }[]` — exames esperados
+- `automacoes: { condicao: string; acao: string; ativa: boolean }[]` — regras de automação da linha
+- `alertas: { condicao: string; severidade: 'warning' | 'critical'; mensagem: string }[]` — alertas configurados
+
+### 2. `src/data/care-lines.ts` — Dados completos por linha
+
+Preencher as 6 linhas com todos os campos:
+
+- **Diabetes**: critérios (HbA1c ≥ 6.5%, glicemia ≥ 126, etc.), metas (HbA1c < 7%, LDL < 100, etc.), exames (HbA1c trimestral, fundoscopia anual, etc.), tarefas (contagem de carbo, avaliação de pés, etc.), automações e alertas específicos
+- **Hipertensão**: critérios (PAS ≥ 140 ou PAD ≥ 90), metas (PA < 130/80), exames (creatinina, MAPA), tarefas (aferição domiciliar, adesão medicamentosa)
+- **Obesidade**: critérios (IMC ≥ 30), metas (perda ≥ 5% peso), exames (perfil metabólico), tarefas (diário alimentar, avaliação bariátrica se IMC > 40)
+- **Dislipidemia**: critérios (LDL > 160 ou risco CV alto), metas (LDL < 100 ou < 70 se alto risco), exames (perfil lipídico semestral)
+- **Saúde Mental**: critérios (PHQ-9 ≥ 10 ou GAD-7 ≥ 10), metas (PHQ-9 < 5, WHO-5 > 50), exames/escalas, tarefas (psicoterapia, monitoramento de crise)
+- **Asma**: critérios (ACT < 20 ou uso de resgate > 2x/sem), metas (ACT ≥ 20, zero exacerbações), exames (espirometria), tarefas (técnica inalatória, plano de ação)
+
+Tarefas compartilhadas entre linhas (ex: "Aferição de peso", "Avaliação de adesão") marcadas com `compartilhada: true` para deduplicação na visão integrada.
+
+### 3. `src/pages/LinhasDeCuidado.tsx` — Reescrever completamente
 
 **Header**
-- "CareJourney Studio" com subtítulo "Configuração e administração da plataforma"
-- KPIs: Usuários ativos, Linhas de Cuidado, Regras de Automação, Parâmetros Clínicos
+- Título "Linhas de Cuidado" com contagem
+- Toggle "Visão por Linha" / "Visão Integrada do Paciente"
+- Botão "Nova Linha"
 
-**Tabs principais** (8 tabs com scroll horizontal no mobile)
+**Visão por Linha** (padrão)
+- Grid de cards por linha (atual, melhorado)
+- Click no card → expande drawer/seção detalhada com tabs internas:
+  - **Resumo**: KPIs da linha (pacientes, adesão, fora da meta)
+  - **Critérios**: inclusão e saída com badges
+  - **Parâmetros & Metas**: tabela com parâmetro, meta, unidade, operador
+  - **Tarefas**: lista de tarefas padrão com etapa vinculada e badge "compartilhada" quando aplicável
+  - **Exames**: lista de exames padrão com frequência
+  - **PROMs/PREMs**: cards com nome e tipo
+  - **Automações**: condição → ação, toggle ativo
+  - **Alertas**: condição, severidade, mensagem
 
-1. **Usuários** (refinar)
-   - Tabela existente melhorada com: avatar/iniciais, role badge colorido (admin/manager/professional/patient), status ativo/inativo toggle
-   - Botão "Novo Usuário" com toast
+**Visão Integrada do Paciente** (novo)
+- Seletor de paciente (dropdown com pacientes que têm múltiplas linhas ativas)
+- Mostra todas as linhas ativas do paciente lado a lado
+- Destaca tarefas compartilhadas (aparece uma vez, vinculada a múltiplas linhas)
+- Mostra parâmetros que se sobrepõem entre linhas (ex: peso compartilhado entre Diabetes/Obesidade)
+- Metas consolidadas com indicador de qual linha define cada meta
 
-2. **Permissões** (novo)
-   - Matriz visual: roles × módulos (Dashboard, Pacientes, Jornadas, BI, etc.)
-   - Checkboxes ou ícones de check/x por célula
-   - Mock estático — visual de controle de acesso
+### 4. Rota — Adicionar sub-rota de detalhe
 
-3. **Linhas de Cuidado** (absorver EditorNoCode)
-   - Cards por linha: nome, ícone, cor, contagem de pacientes, adesão média
-   - Click expande para ver: etapas da jornada padrão, parâmetros vinculados, questionários vinculados
-   - Botão "Nova Linha" com toast
-   - Dados vindos de `careLines` e `defaultSteps`
-
-4. **Etapas da Jornada** (novo)
-   - Lista ordenada das 10 etapas padrão com drag-handle visual (GripVertical)
-   - Cada etapa mostra: nome, SLA (mock), responsável padrão
-   - Botão "Nova Etapa" com toast
-
-5. **Parâmetros Clínicos** (novo)
-   - Tabela com todos os parâmetros do `parameterDictionary`
-   - Colunas: campo, label, tipo, unidade, grupo
-   - Filtro por grupo (laboratorial, medidas, sinais_vitais, questionário, etc.)
-   - Badge colorido por grupo
-
-6. **Questionários** (novo)
-   - Lista de PROMs e PREMs por linha de cuidado
-   - Dados extraídos de `careLines[].proms` e `careLines[].prems`
-   - Cards com: nome, tipo (PROM/PREM), linha vinculada
-
-7. **Alertas e Automações** (novo)
-   - Mock de regras de automação: condição → ação
-   - Exemplos: "Se HbA1c > 9% → criar tarefa urgente", "Se faltou consulta → gerar busca ativa"
-   - Toggle ativo/inativo por regra
-   - Dados do tipo `AutomationRule` já existente em types
-
-8. **Auditoria** (manter, mover para última tab)
-   - Tabela existente de log de auditoria
-
-### 2. `mock-data.ts` — Adicionar dados mock
-
-- `mockAutomationRules`: 5 regras de automação com condição, ações, status ativo
-- `mockPermissionsMatrix`: objeto role → módulos permitidos
-
-### 3. `EditorNoCode.tsx` — Manter como está
-A funcionalidade será absorvida pela tab "Linhas de Cuidado" no Studio, mas a rota `/editor` continua existindo para acesso direto.
-
-### 4. Sidebar admin — Simplificar
-Remover "Configurações" duplicada do menu admin; "Studio" (rota `/`) já cobre tudo.
+Adicionar rota `/linhas-de-cuidado/:id` para acesso direto ao detalhe da linha (opcional, pode ser modal/drawer).
 
 ---
 
@@ -73,7 +68,8 @@ Remover "Configurações" duplicada do menu admin; "Studio" (rota `/`) já cobre
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/StudioAdmin.tsx` | Reescrever — studio completo com 8 tabs |
-| `src/data/mock-data.ts` | Adicionar `mockAutomationRules`, `mockPermissionsMatrix` |
-| `src/components/layout/AppSidebar.tsx` | Remover item "Configurações" do menu admin |
+| `src/data/types.ts` | Expandir `CareLine` com novos campos |
+| `src/data/care-lines.ts` | Dados completos para 6 linhas |
+| `src/pages/LinhasDeCuidado.tsx` | Reescrever — grid + detalhe expandido + visão integrada |
+| `src/App.tsx` | Adicionar rota `/linhas-de-cuidado/:id` (se sub-rota) |
 
