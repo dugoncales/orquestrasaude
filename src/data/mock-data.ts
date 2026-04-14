@@ -154,6 +154,13 @@ export const mockOrientacoes = [
   { patientId: 'p6', texto: 'Registrar refeições no diário alimentar todos os dias', profissional: 'Nut. Juliana', data: '2025-04-11' },
 ];
 
+export const mockAIInsights = [
+  { id: 'ai1', tipo: 'clinico', mensagem: '38% dos pacientes de Diabetes estão com HbA1c acima da meta — considerar intensificação terapêutica em grupo.', severidade: 'critical' as const },
+  { id: 'ai2', tipo: 'operacional', mensagem: 'Etapa "Seguimento Multiprofissional" concentra 45% dos atrasos — revisar SLA e redistribuir carga.', severidade: 'warning' as const },
+  { id: 'ai3', tipo: 'clinico', mensagem: '3 pacientes críticos sem retorno há mais de 20 dias — priorizar busca ativa imediata.', severidade: 'critical' as const },
+  { id: 'ai4', tipo: 'operacional', mensagem: 'Linha de Obesidade tem a menor taxa de adesão (65%) — avaliar engajamento e barreiras de acesso.', severidade: 'warning' as const },
+];
+
 export const mockQuestionnaireResponses: QuestionnaireResponse[] = [
   { id: 'qr1', questionnaireId: 'q1', patientId: 'p1', patientName: 'Maria da Silva Santos', score: 62, maxScore: 100, data: '2025-03-15', status: 'respondido', careLineId: 'diabetes' },
   { id: 'qr2', questionnaireId: 'q2', patientId: 'p1', patientName: 'Maria da Silva Santos', score: 78, maxScore: 100, data: '2025-03-15', status: 'respondido', careLineId: 'diabetes' },
