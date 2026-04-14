@@ -146,6 +146,14 @@ export const mockParameterRecords: ParameterRecord[] = [
   { id: 'pr19', patientId: 'p8', field: 'pas', value: 152, date: '2025-01-01', careLineId: 'hipertensao' },
 ];
 
+export const mockOrientacoes = [
+  { patientId: 'p1', texto: 'Manter caminhada diária de 30 minutos após o café', profissional: 'Nut. Juliana', data: '2025-04-10' },
+  { patientId: 'p1', texto: 'Tomar Metformina sempre junto com a refeição', profissional: 'Dra. Ana Beatriz', data: '2025-04-08' },
+  { patientId: 'p1', texto: 'Evitar alimentos ultraprocessados e bebidas açucaradas', profissional: 'Nut. Juliana', data: '2025-04-05' },
+  { patientId: 'p3', texto: 'Manter rotina de sono regular — deitar e acordar no mesmo horário', profissional: 'Psic. Mariana', data: '2025-04-09' },
+  { patientId: 'p6', texto: 'Registrar refeições no diário alimentar todos os dias', profissional: 'Nut. Juliana', data: '2025-04-11' },
+];
+
 export const mockQuestionnaireResponses: QuestionnaireResponse[] = [
   { id: 'qr1', questionnaireId: 'q1', patientId: 'p1', patientName: 'Maria da Silva Santos', score: 62, maxScore: 100, data: '2025-03-15', status: 'respondido', careLineId: 'diabetes' },
   { id: 'qr2', questionnaireId: 'q2', patientId: 'p1', patientName: 'Maria da Silva Santos', score: 78, maxScore: 100, data: '2025-03-15', status: 'respondido', careLineId: 'diabetes' },
