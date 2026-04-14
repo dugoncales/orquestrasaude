@@ -89,6 +89,7 @@ export interface JourneyStep {
   consultasVinculadas?: string[];
   examesVinculados?: string[];
   tarefasVinculadas?: string[];
+  questionariosVinculados?: string[];
 }
 
 export interface Journey {

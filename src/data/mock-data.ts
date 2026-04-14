@@ -20,6 +20,7 @@ const makeSteps = (journeyId: string, currentIndex: number, pendenciasMap: Recor
     consultasVinculadas: [] as string[],
     examesVinculados: [] as string[],
     tarefasVinculadas: [] as string[],
+    questionariosVinculados: [] as string[],
   }));
 
 // Build journeys with rich step-level pendencies
@@ -28,7 +29,9 @@ const j1Steps = makeSteps('j1', 5, {
   6: ['Questionário de qualidade de vida não respondido'],
 });
 j1Steps[5].consultasVinculadas = ['a1'];
-j1Steps[5].examesVinculados = ['e1'];
+j1Steps[5].examesVinculados = ['e1', 'e2'];
+j1Steps[5].tarefasVinculadas = ['t1'];
+j1Steps[6].questionariosVinculados = ['qr1', 'qr2'];
 j1Steps[5].tarefasVinculadas = ['t1'];
 
 const j2Steps = makeSteps('j2', 4, {
@@ -52,6 +55,7 @@ const j5Steps = makeSteps('j5', 4, {
 }, ['concluido','concluido','concluido','atrasado','em_andamento','nao_iniciado','nao_iniciado','nao_iniciado','nao_iniciado','nao_iniciado']);
 j5Steps[4].tarefasVinculadas = ['t2'];
 j5Steps[4].consultasVinculadas = ['a4'];
+j5Steps[3].questionariosVinculados = ['qr3'];
 
 const j6Steps = makeSteps('j6', 7, {
   7: ['Reavaliar esquema insulínico', 'Albuminúria 320mg/g — avaliar progressão DRC'],
@@ -64,6 +68,7 @@ const j7Steps = makeSteps('j7', 5, {
 });
 j7Steps[5].examesVinculados = ['e5'];
 j7Steps[5].tarefasVinculadas = ['t4'];
+j7Steps[5].questionariosVinculados = ['qr4'];
 
 const j8Steps = makeSteps('j8', 3, {
   3: ['IMC > 40 — avaliar indicação bariátrica', 'Verificar adesão à Semaglutida'],
