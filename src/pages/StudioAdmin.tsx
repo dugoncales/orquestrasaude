@@ -178,7 +178,7 @@ export default function StudioAdmin() {
                       {roles.map(r => (
                         <TableCell key={r} className="text-center">
                           {mockPermissionsMatrix[r]?.[mod]
-                            ? <Check className="h-4 w-4 text-emerald-500 mx-auto" />
+                            ? <Check className="h-4 w-4 text-primary mx-auto" />
                             : <X className="h-4 w-4 text-muted-foreground/40 mx-auto" />
                           }
                         </TableCell>
