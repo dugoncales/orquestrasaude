@@ -233,13 +233,13 @@ export default function StudioAdmin() {
                         <div>
                           <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">PROMs</p>
                           <div className="flex flex-wrap gap-1">
-                            {line.proms.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.replaceAll('_', ' ')}</Badge>)}
+                            {line.proms.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split("_").join(" ")'_', ' ')}</Badge>)}
                           </div>
                         </div>
                         <div>
                           <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">PREMs</p>
                           <div className="flex flex-wrap gap-1">
-                            {line.prems.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.replaceAll('_', ' ')}</Badge>)}
+                            {line.prems.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split("_").join(" ")'_', ' ')}</Badge>)}
                           </div>
                         </div>
                       </div>
@@ -299,7 +299,7 @@ export default function StudioAdmin() {
                     : 'bg-muted text-muted-foreground border-border hover:border-primary/30'
                 }`}
               >
-                {g === 'todos' ? 'Todos' : g.replaceAll('_', ' ')}
+                {g === 'todos' ? 'Todos' : g.split("_").join(" ")'_', ' ')}
               </button>
             ))}
           </div>
@@ -325,7 +325,7 @@ export default function StudioAdmin() {
                     <TableCell className="text-sm hidden sm:table-cell text-muted-foreground">{p.unit || '—'}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${groupColors[p.group] || 'bg-muted text-muted-foreground'}`}>
-                        {p.group.replaceAll('_', ' ')}
+                        {p.group.split("_").join(" ")'_', ' ')}
                       </span>
                     </TableCell>
                   </TableRow>
@@ -355,7 +355,7 @@ export default function StudioAdmin() {
                             {line.proms.map(p => (
                               <div key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted border border-border">
                                 <ClipboardList className="h-3 w-3 text-primary" />
-                                <span className="text-[11px] font-medium text-foreground">{p.replaceAll('_', ' ')}</span>
+                                <span className="text-[11px] font-medium text-foreground">{p.split("_").join(" ")'_', ' ')}</span>
                                 <Badge variant="secondary" className="text-[9px] ml-1">PROM</Badge>
                               </div>
                             ))}
@@ -369,7 +369,7 @@ export default function StudioAdmin() {
                             {line.prems.map(p => (
                               <div key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted border border-border">
                                 <ClipboardList className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[11px] font-medium text-foreground">{p.replaceAll('_', ' ')}</span>
+                                <span className="text-[11px] font-medium text-foreground">{p.split("_").join(" ")'_', ' ')}</span>
                                 <Badge variant="outline" className="text-[9px] ml-1">PREM</Badge>
                               </div>
                             ))}
