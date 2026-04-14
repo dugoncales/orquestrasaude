@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { careLines } from '@/data/care-lines';
 import { mockPatients } from '@/data/mock-patients';
 import { parameterDictionary } from '@/data/parameters';
@@ -10,22 +10,70 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
+import { RiskSemaphore } from '@/components/shared/RiskSemaphore';
 import {
   Plus, ArrowLeft, Users, TrendingUp, Target, ClipboardList,
   FlaskConical, FileText, Zap, AlertTriangle, LogIn, LogOut,
-  Activity, Heart, Scale, Droplets, Brain, Wind, Eye, Share2
+  Activity, Heart, Scale, Droplets, Brain, Wind, Eye, Share2,
+  Download, Filter, Calendar, ChevronDown
 } from 'lucide-react';
 
 const iconMap: Record<string, any> = { Activity, Heart, Scale, Droplets, Brain, Wind };
+
+const PERIOD_OPTIONS = [
+  { value: '1', label: 'Último mês' },
+  { value: '3', label: '3 meses' },
+  { value: '6', label: '6 meses' },
+  { value: '12', label: '12 meses' },
+];
+
+function exportCSV(lines: CareLine[]) {
+  const headers = ['Linha', 'Pacientes', 'Adesão (%)', 'Metas', 'Tarefas', 'Exames', 'Automações Ativas', 'Alertas'];
+  const rows = lines.map(l => [
+    l.name, l.patientCount, l.avgAdherence, l.metas.length,
+    l.tarefasPadrao.length, l.examesPadrao.length,
+    l.automacoes.filter(a => a.ativa).length, l.alertas.length
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'linhas_de_cuidado.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast.success('CSV exportado com sucesso');
+}
 
 export default function LinhasDeCuidado() {
   const [selectedLine, setSelectedLine] = useState<CareLine | null>(null);
   const [viewMode, setViewMode] = useState<'lines' | 'integrated'>('lines');
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [selectedLineFilters, setSelectedLineFilters] = useState<string[]>([]);
+  const [period, setPeriod] = useState('12');
 
   const multiLinePatients = mockPatients.filter(p => p.linhasAtivas.length > 1);
   const selectedPatient = mockPatients.find(p => p.id === selectedPatientId);
+
+  const filteredLines = useMemo(() => {
+    if (selectedLineFilters.length === 0) return careLines;
+    return careLines.filter(l => selectedLineFilters.includes(l.id));
+  }, [selectedLineFilters]);
+
+  const priorityPatients = useMemo(() => {
+    let patients = [...mockPatients].filter(p => p.statusCadastral === 'ativo');
+    if (selectedLineFilters.length > 0) {
+      patients = patients.filter(p => p.linhasAtivas.some(la => selectedLineFilters.includes(la)));
+    }
+    return patients.sort((a, b) => b.scoreRisco - a.scoreRisco).slice(0, 10);
+  }, [selectedLineFilters]);
+
+  const periodLabel = PERIOD_OPTIONS.find(p => p.value === period)?.label || '12 meses';
+
+  const toggleLineFilter = (id: string) => {
+    setSelectedLineFilters(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   if (selectedLine) {
     return <CareLineDetail line={selectedLine} onBack={() => setSelectedLine(null)} />;
@@ -33,10 +81,11 @@ export default function LinhasDeCuidado() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">Linhas de Cuidado</h1>
-          <p className="text-xs text-muted-foreground">{careLines.length} linhas configuradas · Suporte a múltiplas patologias simultâneas</p>
+          <p className="text-xs text-muted-foreground">{careLines.length} linhas configuradas · {periodLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-muted rounded-lg p-0.5">
@@ -47,46 +96,157 @@ export default function LinhasDeCuidado() {
               <Share2 className="h-3 w-3 mr-1" /> Integrada
             </Button>
           </div>
+          <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={() => exportCSV(filteredLines)}>
+            <Download className="h-3 w-3" /> Exportar
+          </Button>
           <Button size="sm" className="gap-1" onClick={() => toast.success('Nova linha de cuidado (em breve)')}>
             <Plus className="h-4 w-4" /> Nova Linha
           </Button>
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5">
+              <Filter className="h-3 w-3" />
+              Linhas {selectedLineFilters.length > 0 && <Badge className="h-4 px-1.5 text-[10px]">{selectedLineFilters.length}</Badge>}
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="start">
+            <div className="space-y-1">
+              {careLines.map(l => (
+                <label key={l.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-secondary/50 cursor-pointer text-xs">
+                  <Checkbox
+                    checked={selectedLineFilters.includes(l.id)}
+                    onCheckedChange={() => toggleLineFilter(l.id)}
+                  />
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: l.color }} />
+                  {l.name}
+                </label>
+              ))}
+              {selectedLineFilters.length > 0 && (
+                <Button variant="ghost" size="sm" className="w-full text-xs h-7 mt-1" onClick={() => setSelectedLineFilters([])}>
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-36 h-8 text-xs">
+            <Calendar className="h-3 w-3 mr-1.5" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map(p => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {viewMode === 'lines' ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {careLines.map(line => {
-            const Icon = iconMap[line.icon] || Activity;
-            return (
-              <Card
-                key={line.id}
-                className="border-t-2 hover:border-primary/50 transition-colors cursor-pointer group"
-                style={{ borderTopColor: line.color }}
-                onClick={() => setSelectedLine(line)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: line.color + '22' }}>
-                      <Icon className="h-5 w-5" style={{ color: line.color }} />
+        <>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredLines.map(line => {
+              const Icon = iconMap[line.icon] || Activity;
+              return (
+                <Card
+                  key={line.id}
+                  className="border-t-2 hover:border-primary/50 transition-colors cursor-pointer group"
+                  style={{ borderTopColor: line.color }}
+                  onClick={() => setSelectedLine(line)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: line.color + '22' }}>
+                        <Icon className="h-5 w-5" style={{ color: line.color }} />
+                      </div>
+                      <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">Ver detalhes →</Badge>
                     </div>
-                    <Badge variant="outline" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">Ver detalhes →</Badge>
-                  </div>
-                  <h3 className="text-sm font-bold text-foreground mb-1">{line.name}</h3>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
-                    <span className="flex items-center gap-1"><Users className="h-3 w-3" />{line.patientCount}</span>
-                    <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{line.avgAdherence}% adesão</span>
-                  </div>
-                  <div className="flex gap-1 flex-wrap">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.metas.length} metas</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.tarefasPadrao.length} tarefas</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.automacoes.length} automações</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.alertas.length} alertas</span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    <h3 className="text-sm font-bold text-foreground mb-1">{line.name}</h3>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                      <span className="flex items-center gap-1"><Users className="h-3 w-3" />{line.patientCount}</span>
+                      <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{line.avgAdherence}% adesão</span>
+                    </div>
+                    <div className="flex gap-1 flex-wrap">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.metas.length} metas</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.tarefasPadrao.length} tarefas</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.automacoes.length} automações</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">{line.alertas.length} alertas</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Priority Patients */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Pacientes Prioritários
+                <Badge variant="secondary" className="text-[10px]">Top 10</Badge>
+              </h2>
+            </div>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              {priorityPatients.map(patient => {
+                const offTarget = patient.goals.filter(g => {
+                  if (g.operator === '<') return g.currentValue >= g.target;
+                  if (g.operator === '>') return g.currentValue <= g.target;
+                  return g.currentValue !== g.target;
+                });
+                const patientCareLines = careLines.filter(l => patient.linhasAtivas.includes(l.id));
+                return (
+                  <Card key={patient.id} className="hover:border-primary/30 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{patient.nome}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <RiskSemaphore level={patient.riskLevel} score={patient.scoreRisco} />
+                            <span className="text-[10px] text-muted-foreground capitalize">{patient.riskLevel}</span>
+                          </div>
+                        </div>
+                        {patient.diasSemRetorno !== undefined && (
+                          <Badge variant={patient.diasSemRetorno > 30 ? 'destructive' : 'outline'} className="text-[10px]">
+                            {patient.diasSemRetorno}d sem retorno
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex gap-1 flex-wrap mb-2">
+                        {patientCareLines.map(l => (
+                          <span key={l.id} className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: l.color + '22', color: l.color }}>
+                            {l.name}
+                          </span>
+                        ))}
+                      </div>
+
+                      {offTarget.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted-foreground font-semibold">Fora da meta:</p>
+                          {offTarget.slice(0, 3).map((g, i) => (
+                            <div key={i} className="flex items-center justify-between text-[10px]">
+                              <span className="text-muted-foreground">{g.label}</span>
+                              <span className="text-destructive font-mono">{g.currentValue} {g.unit} (meta {g.operator} {g.target})</span>
+                            </div>
+                          ))}
+                          {offTarget.length > 3 && <p className="text-[10px] text-muted-foreground">+{offTarget.length - 3} mais</p>}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </>
       ) : (
         <IntegratedView
           patients={multiLinePatients}
@@ -103,6 +263,7 @@ export default function LinhasDeCuidado() {
 function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }) {
   const Icon = iconMap[line.icon] || Activity;
   const paramLabels = (fields: string[]) => fields.map(f => parameterDictionary.find(p => p.field === f)?.label || f);
+  const linePatients = mockPatients.filter(p => p.linhasAtivas.includes(line.id)).sort((a, b) => b.scoreRisco - a.scoreRisco);
 
   return (
     <div className="space-y-5">
@@ -141,6 +302,7 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
           <TabsTrigger value="proms" className="text-xs">PROMs/PREMs</TabsTrigger>
           <TabsTrigger value="automacoes" className="text-xs">Automações</TabsTrigger>
           <TabsTrigger value="alertas" className="text-xs">Alertas</TabsTrigger>
+          <TabsTrigger value="pacientes" className="text-xs">Pacientes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="criterios">
@@ -296,6 +458,67 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
             </Table>
           </CardContent></Card>
         </TabsContent>
+
+        {/* New Patients tab */}
+        <TabsContent value="pacientes">
+          <Card><CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead className="text-xs">Paciente</TableHead>
+                <TableHead className="text-xs">Risco</TableHead>
+                <TableHead className="text-xs">Linhas Ativas</TableHead>
+                <TableHead className="text-xs">Metas Fora</TableHead>
+                <TableHead className="text-xs">Sem Retorno</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {linePatients.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="text-xs text-center text-muted-foreground py-8">Nenhum paciente nesta linha</TableCell></TableRow>
+                ) : linePatients.map(p => {
+                  const offTarget = p.goals.filter(g => {
+                    if (g.operator === '<') return g.currentValue >= g.target;
+                    if (g.operator === '>') return g.currentValue <= g.target;
+                    return g.currentValue !== g.target;
+                  });
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="text-xs font-medium">{p.nome}</TableCell>
+                      <TableCell><RiskSemaphore level={p.riskLevel} score={p.scoreRisco} /></TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 flex-wrap">
+                          {p.linhasAtivas.map(la => {
+                            const cl = careLines.find(c => c.id === la);
+                            return cl ? (
+                              <span key={la} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: cl.color + '22', color: cl.color }}>
+                                {cl.name}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {offTarget.length > 0 ? (
+                          <div className="space-y-0.5">
+                            {offTarget.slice(0, 2).map((g, i) => (
+                              <p key={i} className="text-[10px] text-destructive">{g.label}: {g.currentValue} {g.unit}</p>
+                            ))}
+                            {offTarget.length > 2 && <p className="text-[10px] text-muted-foreground">+{offTarget.length - 2}</p>}
+                          </div>
+                        ) : <span className="text-[10px] text-green-400">Todas na meta</span>}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {p.diasSemRetorno !== undefined ? (
+                          <span className={p.diasSemRetorno > 30 ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+                            {p.diasSemRetorno}d
+                          </span>
+                        ) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent></Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -312,7 +535,6 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
     ? careLines.filter(l => selectedPatient.linhasAtivas.includes(l.id))
     : [];
 
-  // Deduplicate shared tasks
   const allTasks = patientLines.flatMap(l => l.tarefasPadrao.map(t => ({ ...t, lineId: l.id, lineName: l.name, lineColor: l.color })));
   const sharedTasks: typeof allTasks = [];
   const exclusiveTasks: typeof allTasks = [];
@@ -329,7 +551,6 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
     }
   });
 
-  // Overlapping parameters
   const paramCount: Record<string, string[]> = {};
   patientLines.forEach(l => l.clinicalParameters.forEach(p => {
     if (!paramCount[p]) paramCount[p] = [];
@@ -353,7 +574,6 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
 
       {selectedPatient && (
         <>
-          {/* Active lines */}
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {patientLines.map(line => {
               const Icon = iconMap[line.icon] || Activity;
@@ -387,7 +607,6 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
             })}
           </div>
 
-          {/* Shared tasks */}
           {sharedTasks.length > 0 && (
             <Card><CardContent className="p-4">
               <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
@@ -408,7 +627,6 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
             </CardContent></Card>
           )}
 
-          {/* Overlapping params */}
           {overlapping.length > 0 && (
             <Card><CardContent className="p-4">
               <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
@@ -430,7 +648,6 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
             </CardContent></Card>
           )}
 
-          {/* Consolidated goals */}
           <Card><CardContent className="p-4">
             <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
               <Target className="h-4 w-4 text-green-400" /> Metas Consolidadas
