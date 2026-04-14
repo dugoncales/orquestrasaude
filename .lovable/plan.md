@@ -1,88 +1,89 @@
 
 
-# CareJourney One 3.0 — Plano de Implementação
+# Plano: Refinar a Plataforma para Foco Assistencial
 
-O projeto atual possui apenas o design system (tema escuro, Plus Jakarta Sans, status chips) e componentes UI base. Toda a estrutura de páginas, navegação, dados e lógica precisa ser construída.
-
-Dado o tamanho do JSON (14 páginas, 4 perfis, 6 linhas de cuidado, motores de automação, BI, IA, no-code builder), a implementação será dividida em fases incrementais. Esta primeira entrega cobre a **fundação funcional completa** — layout, navegação, dados mock, e todas as páginas principais com componentes visuais.
+O problema atual: as telas existem mas funcionam como módulos desconectados, sem contexto assistencial integrado. A Jornada Clínica mostra etapas genéricas sem vincular pendências reais, parâmetros fora da meta ou ações necessárias. Os dashboards são listas estáticas. Falta a "cola" que transforma dados em decisão clínica.
 
 ---
 
-## Fase 1 — Fundação (esta entrega)
+## 1. Jornada Clínica como Tela Central (reescrever `JornadaClinica.tsx`)
 
-### 1. Dados e tipos (src/data/)
-- `types.ts` — Interfaces TypeScript para Patient, CareLine, Journey, JourneyStep, Appointment, Exam, Task, Alert, ParameterRecord, Questionnaire, AutomationRule, etc.
-- `care-lines.ts` — As 6 linhas de cuidado do JSON (Diabetes, Hipertensão, Obesidade, Dislipidemia, Saúde Mental, Asma) com parâmetros, PROMs e PREMs
-- `parameters.ts` — Dicionário de parâmetros clínicos (31 itens)
-- `mock-patients.ts` — 8-10 pacientes fictícios com dados administrativos, clínicos, linhas ativas, jornadas em diferentes etapas
-- `mock-data.ts` — Consultas, exames, tarefas, alertas, respostas de questionários
+A tela atual é um timeline horizontal genérico. Será transformada em um **painel de comando da jornada** com 3 zonas:
 
-### 2. Contexto de autenticação simulado (src/contexts/)
-- `AuthContext.tsx` — Provider com role switching (patient/professional/manager/admin) via seletor no header, sem backend real. Controla qual dashboard e menu é exibido.
+**Zona A — Contexto do paciente** (topo)
+- Nome, risco, diagnósticos ativos, linhas ativas (tabs para alternar entre jornadas do mesmo paciente)
+- Parâmetros fora da meta destacados em vermelho (ex: "HbA1c 7.9% — meta < 7%")
+- Alertas clínicos ativos inline
 
-### 3. Layout principal (src/components/layout/)
-- `AppLayout.tsx` — SidebarProvider + Header + Main content
-- `AppSidebar.tsx` — Sidebar fixa com menu dinâmico por role (itens do JSON: Dashboard, Pacientes, Jornadas, Linhas de Cuidado, Consultas, Exames, Questionários, BI, IA, Editor No-Code, Configurações). Ícones Lucide.
-- `AppHeader.tsx` — Logo "CareJourney One", role switcher, notificações, avatar
+**Zona B — Timeline interativa** (centro)
+- Timeline horizontal mantida, mas cada card de etapa agora mostra: consultas vinculadas, exames pendentes, tarefas abertas daquela etapa
+- Etapa atual expandida automaticamente com painel lateral detalhado
+- Indicação visual clara: "Você está aqui" com seta/destaque forte
+- Próximo passo com botão de ação ("Agendar retorno", "Solicitar exame")
 
-### 4. Páginas — Dashboards por perfil (src/pages/)
-- `DashboardPaciente.tsx` — Card boas-vindas, resumo jornada, próximos passos, próxima consulta, exames pendentes, questionários pendentes, metas clínicas, orientações, timeline simplificada
-- `DashboardProfissional.tsx` — Pacientes prioritários, tarefas do dia, consultas do dia, faltosos, pendências clínicas/operacionais, funil de jornadas
-- `DashboardGestor.tsx` — KPIs executivos (cards numéricos), gargalos, tempo entre etapas, pacientes por linha, produtividade, taxa de adesão, coortes prioritárias
+**Zona C — Painel de ação da etapa atual** (inferior ou lateral)
+- Quem precisa agir (responsável + prazo)
+- O que está pendente (lista de pendências com tipo: exame, consulta, questionário, tarefa)
+- Parâmetros relevantes da etapa com último valor e tendência
+- Ações rápidas: marcar como concluído, registrar pendência, solicitar exame
 
-### 5. Páginas — Core clínico
-- `Pacientes.tsx` — Lista com busca, filtros, tabela com tags de linhas, score de risco (semáforo), status operacional
-- `PerfilPaciente.tsx` — Dados admin + resumo clínico + diagnósticos + medicações + fatores de risco + linhas ativas + metas + timeline longitudinal
-- `JornadaClinica.tsx` — **Tela central**: Timeline interativa horizontal com cards por etapa (10 etapas default), status visual (não iniciado/em andamento/concluído/atrasado/bloqueado), responsável, prazo, pendências, próximo passo, botões de ação
-- `LinhasDeCuidado.tsx` — Catálogo com cards das 6 linhas, indicadores por linha, botões criar/editar/duplicar
+## 2. Mock Data Enriquecido (`mock-data.ts`)
 
-### 6. Páginas — Operacional
-- `Consultas.tsx` — Agenda visual (calendário), lista de consultas, status, registro de falta, reagendamento
-- `Exames.tsx` — Lista de solicitações, resultados, pendências, alertas de atraso
-- `Questionarios.tsx` — PROMs e PREMs: lista, status de resposta, score automático, histórico longitudinal
+- Adicionar pendências variadas por etapa (não apenas "Aguardando resultado de exame" genérico)
+- Vincular consultas, exames e tarefas a etapas específicas da jornada (campo `journeyStepId`)
+- Adicionar metas por paciente/linha (ex: `{ field: 'hba1c', target: 7, operator: '<' }`)
+- Parâmetros com valores recentes para comparação com metas
 
-### 7. Páginas — Inteligência
-- `BI.tsx` — 3 abas (Operacional, Clínico, Executivo) com cards de métricas e gráficos usando recharts. Filtros por período/linha/unidade/profissional
-- `IAplanilhas.tsx` — Upload de arquivo, preview da base, mapeamento de colunas, análise por paciente/coorte, alertas, score de prioridade, racional do insight (tudo visual com dados mock)
+## 3. Dashboard Profissional — Cockpit Orientado à Ação (reescrever `DashboardProfissional.tsx`)
 
-### 8. Páginas — Administração
-- `EditorNoCode.tsx` — Builder visual com blocos arrastáveis: etapas, parâmetros, questionários, regras, alertas, indicadores. Preview da jornada.
-- `StudioAdmin.tsx` — Gestão de usuários, permissões, módulos ativos, auditoria, configurações globais
+Substituir as listas estáticas por painéis de decisão:
 
-### 9. Roteamento (src/App.tsx)
-- 14 rotas correspondentes às páginas do JSON
-- Redirecionamento da "/" para o dashboard correto baseado no role ativo
+- **"Quem precisa de mim agora"**: pacientes com parâmetros fora da meta + próxima etapa pendente, ordenados por urgência
+- **"Pendências que travam jornadas"**: exames atrasados, consultas sem retorno, questionários vencidos — com link direto à jornada
+- **Mini-funil visual**: quantos pacientes em cada etapa, com destaque nos gargalos (etapas com muitos pacientes parados)
+- Cada item clicável leva direto à jornada do paciente
+
+## 4. Dashboard Paciente — Orientado ao Próximo Passo (refinar `DashboardPaciente.tsx`)
+
+- Destaque principal: "Seu próximo passo é X" com explicação simples
+- Metas com barra de progresso visual (não apenas texto)
+- Timeline vertical simplificada mostrando apenas 3 etapas: anterior, atual, próxima
+- Alertas em linguagem acessível ("Seu exame HbA1c está acima da meta — converse com sua médica")
+
+## 5. Dashboard Gestor — Gargalos e Coortes (refinar `DashboardGestor.tsx`)
+
+- **Funil de jornadas**: gráfico de funil mostrando quantos pacientes em cada etapa (todas as linhas agregadas)
+- **Gargalos**: etapas com tempo médio acima do SLA, destacadas em vermelho
+- **Coortes prioritárias**: tabela com pacientes de maior risco agrupados por linha, com score e dias sem retorno
+- KPIs: % em meta por parâmetro principal (HbA1c < 7%, PA < 130/80)
+
+## 6. Perfil do Paciente — Visão Longitudinal Integrada (refinar `PerfilPaciente.tsx`)
+
+- Seção "Situação Atual": cards por linha ativa mostrando etapa atual + principal parâmetro fora da meta + pendência mais urgente
+- Gráficos de evolução por parâmetro com linha de meta horizontal (reference line)
+- Timeline unificada de eventos (consultas + exames + mudanças de etapa) em ordem cronológica
+
+## 7. Tipos Atualizados (`types.ts`)
+
+- Adicionar `PatientGoal` (field, target, operator, careLineId)
+- Adicionar `journeyStepId` opcional em Appointment, Exam, Task
+- Adicionar `consultasVinculadas`, `examesVinculados`, `tarefasVinculadas` em JourneyStep
 
 ---
 
-## Componentes reutilizáveis criados
+## Arquivos modificados
 
-| Componente | Uso |
+| Arquivo | Ação |
 |---|---|
-| `KPICard` | Cards numéricos nos dashboards |
-| `StatusChip` | Chips de status em tabelas/cards |
-| `TimelineStep` | Etapas da jornada clínica |
-| `CareLineCard` | Card de linha de cuidado |
-| `PatientRow` | Linha da tabela de pacientes |
-| `RiskSemaphore` | Semáforo de risco (verde/amarelo/vermelho) |
-| `TaskCard` | Card de tarefa multiprofissional |
-| `AlertBanner` | Alertas clínicos e operacionais |
-| `ParameterChart` | Gráfico de evolução de parâmetro |
-| `PromsPremsScore` | Visualização de score de questionário |
-
----
-
-## Decisões técnicas
-
-- **Sem backend**: Todos os dados são mock em arquivos TypeScript. A estrutura está pronta para conectar a Supabase futuramente.
-- **Recharts** para gráficos no BI e evolução de parâmetros
-- **Lucide React** para ícones em toda a plataforma
-- **React Router** para navegação entre as 14 páginas
-- **Dados mock realistas** com pacientes em diferentes estágios de jornada para demonstrar o fluxo completo
-
----
-
-## Estimativa de arquivos
-
-~30 arquivos novos (4 data, 1 context, 3 layout, 14 pages, ~10 components reutilizáveis)
+| `src/data/types.ts` | Adicionar PatientGoal, enrichir JourneyStep |
+| `src/data/mock-data.ts` | Pendências variadas, metas, vínculos etapa-tarefa |
+| `src/data/mock-patients.ts` | Adicionar metas por paciente |
+| `src/pages/JornadaClinica.tsx` | Reescrever completamente — 3 zonas |
+| `src/pages/DashboardProfissional.tsx` | Reescrever — cockpit de decisão |
+| `src/pages/DashboardPaciente.tsx` | Refinar — foco no próximo passo |
+| `src/pages/DashboardGestor.tsx` | Refinar — funil + gargalos |
+| `src/pages/PerfilPaciente.tsx` | Refinar — situação atual por linha |
+| `src/components/shared/GoalProgress.tsx` | Novo — barra de progresso de meta |
+| `src/components/shared/ActionPanel.tsx` | Novo — painel de ações da etapa |
+| `src/components/shared/JourneyFunnel.tsx` | Novo — funil visual de etapas |
 
