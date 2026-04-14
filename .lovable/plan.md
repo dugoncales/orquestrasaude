@@ -1,76 +1,67 @@
 
+# Plano: Dashboard Profissional — Cockpit Assistencial Premium
 
-# Plano: Dashboard Paciente — Experiência Premium Mobile-First
+O dashboard atual tem a estrutura certa (KPIs, pacientes prioritários, pendências, funil) mas falta: consultas do dia, tarefas do dia como seção dedicada, separação de alertas clínicos vs operacionais, atalhos de registro rápido, e hierarquia visual premium.
 
-## Objetivo
-Reescrever `DashboardPaciente.tsx` com foco em simplicidade, acolhimento e clareza. Linguagem acessível, layout mobile-first (single column, touch-friendly), sem jargão técnico.
+---
 
 ## Mudanças
 
-### 1. `DashboardPaciente.tsx` — Reescrever completamente
+### 1. `DashboardProfissional.tsx` — Reescrever completamente
 
-**Hero de boas-vindas** (topo)
-- Saudação contextual por horário ("Bom dia, Maria!", "Boa tarde...")
-- Avatar com iniciais em gradient suave
-- Frase motivacional curta ("Você está progredindo bem no seu tratamento")
-- Contagem de pendências como badge sutil ("3 itens precisam da sua atenção")
+**Header com saudação contextual**
+- "Bom dia, Dra. Ana Beatriz" com data atual
+- Resumo inline: "5 pacientes precisam de atenção · 3 consultas hoje · 2 alertas críticos"
 
-**Card "Seu Próximo Passo"** (destaque principal)
-- Card grande com borda colorida da linha de cuidado
-- Nome da etapa em linguagem simples
-- Ícone da ação esperada (calendário, tubo de ensaio, etc.)
-- Descrição humanizada ("Sua próxima consulta de acompanhamento está agendada")
-- Botão CTA grande ("Ver detalhes")
+**KPIs refinados** (grid 2x2 mobile, 4 colunas desktop)
+- Precisam de Ação (fora da meta)
+- Consultas Hoje (agendadas para hoje)
+- Tarefas do Dia (prazo = hoje ou atrasadas)
+- Faltosos (busca ativa pendente)
 
-**Mini jornada simplificada** (3 etapas: anterior → atual → próxima)
-- Vertical, com circles conectados por linha
-- Etapa anterior: check verde + nome
-- Etapa atual: pulse azul + nome + pendência principal em linguagem simples
-- Próxima etapa: cinza + nome
-- Se múltiplas linhas: tabs simples no topo para alternar ("Diabetes", "Pressão", "Peso")
+**Alertas separados por tipo** (2 colunas: clínicos à esquerda, operacionais à direita)
+- Clínicos: ícone de coração/estetoscópio, borda vermelha
+- Operacionais: ícone de engrenagem, borda amarela
+- Cada alerta com nome do paciente clicável → navega ao perfil
 
-**Próximas consultas** (cards touch-friendly)
-- Cards individuais por consulta (não tabela)
-- Tipo + profissional + data/hora em layout claro
-- Ícone de calendário proeminente
+**Agenda do dia** (nova seção)
+- Cards por consulta agendada para hoje com: horário, paciente, tipo, linha de cuidado
+- Status chip (agendada, realizada)
+- Click → navega ao perfil do paciente
+- Formato timeline vertical com horários
 
-**Exames pendentes** (lista simples)
-- Cards com nome do exame + status em linguagem simples ("Aguardando resultado", "Precisa realizar")
-- Sem códigos ou termos técnicos
+**Pacientes prioritários** (manter e refinar)
+- Ordenados por score de risco
+- Cada row: semáforo + nome + etapa atual + parâmetros fora da meta como badges
+- Click → navega à jornada do paciente (não apenas perfil)
 
-**Questionários pendentes** (CTAs proeminentes)
-- Cada questionário como card com botão "Responder" grande
-- Descrição amigável ("Nos conte como você está se sentindo")
-- Badge de tempo estimado ("~3 min")
+**Tarefas do dia** (nova seção dedicada)
+- Filtrar tarefas com prazo = hoje ou atrasadas
+- Cards com: paciente, descrição, prioridade (badge colorido), prazo
+- Checkbox visual para marcar como concluída (mock toggle)
 
-**Metas clínicas** (visual simplificado)
-- GoalProgress mas com labels amigáveis ("Controle do açúcar", "Colesterol", "Peso")
-- Emojis/ícones em vez de códigos (🎯 no alvo, ⚠️ precisa atenção)
-- Barra de progresso com cores suaves
-- Mensagem positiva quando no alvo ("Parabéns, seu controle está dentro da meta!")
+**Faltosos recentes** (nova seção)
+- Lista de pacientes que faltaram, com data da falta e botão "Busca Ativa"
+- Badge de dias desde a falta
 
-**Orientações recentes** (novo)
-- Card com últimas orientações da equipe
-- Mock: 2-3 orientações simples ("Manter caminhada diária de 30 min", "Tomar medicação pela manhã")
-- Ícone de coração/cuidado
+**Atalhos de registro rápido** (barra fixa no topo ou seção destacada)
+- Botões: "Registrar Consulta", "Solicitar Exame", "Criar Tarefa", "Aplicar PROM"
+- Ícones + labels, estilo ghost/outline, clicáveis (toast de "em breve" por enquanto)
 
-**Rodapé acolhedor**
-- "Sua equipe está acompanhando sua jornada" com avatares da equipe
+**Funil de jornadas** (manter, mover para sidebar ou seção inferior)
+- Já existe via JourneyFunnel, manter compact
 
-### 2. `mock-data.ts` — Adicionar orientações
-- Adicionar array `mockOrientacoes` com orientações mock por paciente
+### 2. Layout geral
+- Grid responsivo: mobile single column, desktop 2-3 colunas
+- Seções com títulos claros e ícones
+- Cards com hover states e transições suaves
 
-### 3. Ajustes de estilo
-- `max-w-lg` para manter layout narrow/mobile
-- Padding generoso, bordas arredondadas grandes (rounded-2xl)
-- Textos maiores para leitura fácil (text-base mínimo para conteúdo)
-- Touch targets mínimo h-12 para botões
-- Cores mais suaves/quentes no hero
+---
 
 ## Arquivos
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/DashboardPaciente.tsx` | Reescrever — mobile-first acolhedor |
-| `src/data/mock-data.ts` | Adicionar `mockOrientacoes` |
+| `src/pages/DashboardProfissional.tsx` | Reescrever — cockpit completo |
 
+Nenhum arquivo de dados precisa mudar — todos os mocks já suportam as funcionalidades (consultas com data/hora, tarefas com prazo, alertas com tipo, faltosos).
