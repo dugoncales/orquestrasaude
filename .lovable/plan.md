@@ -1,60 +1,70 @@
 
-# Plano: Dashboard Profissional — Cockpit Assistencial Premium
 
-O dashboard atual tem a estrutura certa (KPIs, pacientes prioritários, pendências, funil) mas falta: consultas do dia, tarefas do dia como seção dedicada, separação de alertas clínicos vs operacionais, atalhos de registro rápido, e hierarquia visual premium.
+# Plano: Dashboard Gestor — Centro de Comando Executivo-Operacional
+
+O dashboard atual tem 4 KPIs, funil, gráfico de metas, pacientes por linha e coortes prioritárias. Falta: produtividade por profissional, tempo médio entre etapas, gargalos operacionais detalhados, faltosos/adesão por linha, e insights de IA. Reescrever completamente.
 
 ---
 
 ## Mudanças
 
-### 1. `DashboardProfissional.tsx` — Reescrever completamente
+### 1. `DashboardGestor.tsx` — Reescrever completamente
 
-**Header com saudação contextual**
-- "Bom dia, Dra. Ana Beatriz" com data atual
-- Resumo inline: "5 pacientes precisam de atenção · 3 consultas hoje · 2 alertas críticos"
+**Header executivo**
+- Título "Centro de Comando" com data
+- Resumo: "X pacientes · Y fora da meta · Z alertas críticos · W faltosos"
 
-**KPIs refinados** (grid 2x2 mobile, 4 colunas desktop)
-- Precisam de Ação (fora da meta)
-- Consultas Hoje (agendadas para hoje)
-- Tarefas do Dia (prazo = hoje ou atrasadas)
-- Faltosos (busca ativa pendente)
+**KPIs executivos** (grid 2x2 mobile, 5 colunas desktop)
+- Total Pacientes (com trend)
+- Fora da Meta (com % do total)
+- Taxa Adesão Média (com trend)
+- Faltosos (30 dias)
+- Tempo Médio na Etapa Atual (dias)
 
-**Alertas separados por tipo** (2 colunas: clínicos à esquerda, operacionais à direita)
-- Clínicos: ícone de coração/estetoscópio, borda vermelha
-- Operacionais: ícone de engrenagem, borda amarela
-- Cada alerta com nome do paciente clicável → navega ao perfil
+**Grid principal 2 colunas desktop**
 
-**Agenda do dia** (nova seção)
-- Cards por consulta agendada para hoje com: horário, paciente, tipo, linha de cuidado
-- Status chip (agendada, realizada)
-- Click → navega ao perfil do paciente
-- Formato timeline vertical com horários
+**Coluna esquerda:**
 
-**Pacientes prioritários** (manter e refinar)
-- Ordenados por score de risco
-- Cada row: semáforo + nome + etapa atual + parâmetros fora da meta como badges
-- Click → navega à jornada do paciente (não apenas perfil)
+1. **Produtividade por Profissional** (novo)
+   - Tabela: profissional, pacientes ativos, consultas realizadas (mês), tarefas concluídas, tarefas pendentes
+   - Barra visual de carga de trabalho
+   - Dados calculados a partir de `mockAppointments`, `mockTasks`, `mockJourneys`
 
-**Tarefas do dia** (nova seção dedicada)
-- Filtrar tarefas com prazo = hoje ou atrasadas
-- Cards com: paciente, descrição, prioridade (badge colorido), prazo
-- Checkbox visual para marcar como concluída (mock toggle)
+2. **Gargalos Operacionais** (novo, expandido)
+   - Funil de jornadas (já existe via `JourneyFunnel`)
+   - Abaixo: lista dos 3 maiores gargalos com etapa, tempo médio vs SLA, contagem de pacientes retidos
+   - Visual: badges vermelhos para etapas acima do SLA
 
-**Faltosos recentes** (nova seção)
-- Lista de pacientes que faltaram, com data da falta e botão "Busca Ativa"
-- Badge de dias desde a falta
+3. **Tempo Médio entre Etapas** (novo)
+   - BarChart horizontal: cada etapa com tempo médio (mock) vs SLA (referência)
+   - Barras vermelhas quando acima do SLA, verdes quando dentro
 
-**Atalhos de registro rápido** (barra fixa no topo ou seção destacada)
-- Botões: "Registrar Consulta", "Solicitar Exame", "Criar Tarefa", "Aplicar PROM"
-- Ícones + labels, estilo ghost/outline, clicáveis (toast de "em breve" por enquanto)
+**Coluna direita:**
 
-**Funil de jornadas** (manter, mover para sidebar ou seção inferior)
-- Já existe via JourneyFunnel, manter compact
+4. **Pacientes por Linha + Adesão** (refinar)
+   - BarChart agrupado: pacientes (azul) + adesão % (verde) por linha
+   - Ou tabela compacta com mini spark bars
 
-### 2. Layout geral
-- Grid responsivo: mobile single column, desktop 2-3 colunas
-- Seções com títulos claros e ícones
-- Cards com hover states e transições suaves
+5. **% em Meta** (manter, refinar visual)
+   - Barras horizontais com referência de 70%
+
+6. **Coortes Prioritárias** (manter, refinar)
+   - Top 5 pacientes por risco, com parâmetros fora da meta e dias sem retorno
+   - Click → navega à jornada
+
+7. **Insights Agregados da IA** (novo)
+   - Card com 3-4 insights mock gerados como se viessem de IA
+   - Exemplos: "38% dos pacientes de Diabetes estão com HbA1c acima da meta — considerar intensificação terapêutica em grupo", "Etapa 'Seguimento' concentra 45% dos atrasos — revisar SLA", "3 pacientes críticos sem retorno há mais de 20 dias"
+   - Ícone de sparkles/brain, visual diferenciado (borda gradient ou background sutil)
+   - Label "Insights CareJourney AI" com badge "beta"
+
+---
+
+## Dados mock adicionais
+
+Adicionar ao `mock-data.ts`:
+- `mockAIInsights`: array com 4 insights textuais mock (tipo, mensagem, severidade)
+- Produtividade será calculada in-component a partir dos mocks existentes
 
 ---
 
@@ -62,6 +72,6 @@ O dashboard atual tem a estrutura certa (KPIs, pacientes prioritários, pendênc
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/DashboardProfissional.tsx` | Reescrever — cockpit completo |
+| `src/pages/DashboardGestor.tsx` | Reescrever — centro de comando completo |
+| `src/data/mock-data.ts` | Adicionar `mockAIInsights` |
 
-Nenhum arquivo de dados precisa mudar — todos os mocks já suportam as funcionalidades (consultas com data/hora, tarefas com prazo, alertas com tipo, faltosos).
