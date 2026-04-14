@@ -1,99 +1,76 @@
 
 
-# Jornada Clínica — Redesign Premium
+# Plano: Dashboard Paciente — Experiência Premium Mobile-First
 
-A tela atual já tem a estrutura de 3 zonas mas é visualmente plana, com timeline apertada, cards pequenos e pouca hierarquia visual. O redesign transforma isso num painel de comando clínico premium com leitura instantânea.
-
----
+## Objetivo
+Reescrever `DashboardPaciente.tsx` com foco em simplicidade, acolhimento e clareza. Linguagem acessível, layout mobile-first (single column, touch-friendly), sem jargão técnico.
 
 ## Mudanças
 
-### 1. `JornadaClinica.tsx` — Reescrever completamente
+### 1. `DashboardPaciente.tsx` — Reescrever completamente
 
-**Zona A — Contexto do paciente** (topo)
-- Header premium com avatar/iniciais do paciente, nome grande, idade calculada, diagnósticos como badges
-- Risk semaphore mais proeminente com score numérico
-- Linha de care lines ativas como tabs coloridas (já navega entre jornadas)
-- Parâmetros fora da meta em cards individuais com ícone de alerta, valor atual vs meta, tendência (seta up/down)
-- Alertas clínicos E operacionais separados visualmente (ícones diferentes, cores diferentes)
-- Dias sem retorno como badge de urgência
+**Hero de boas-vindas** (topo)
+- Saudação contextual por horário ("Bom dia, Maria!", "Boa tarde...")
+- Avatar com iniciais em gradient suave
+- Frase motivacional curta ("Você está progredindo bem no seu tratamento")
+- Contagem de pendências como badge sutil ("3 itens precisam da sua atenção")
 
-**Zona B — Timeline interativa** (centro)
-- Timeline horizontal com connector line contínua entre steps (não apenas chevrons)
-- Steps como circles/nodes sobre a linha com cards expandidos abaixo
-- Step atual com glow effect, animação pulse, e "ETAPA ATUAL" badge
-- Steps concluídos com check verde, atrasados com borda vermelha pulsante
-- Cada step card mostra: nome, responsável, prazo, contagem de itens vinculados (consultas/exames/tarefas)
-- Click em qualquer step abre detalhes na Zona C (não apenas o atual)
-- Progress bar geral da jornada no topo da timeline (ex: "6 de 10 etapas")
+**Card "Seu Próximo Passo"** (destaque principal)
+- Card grande com borda colorida da linha de cuidado
+- Nome da etapa em linguagem simples
+- Ícone da ação esperada (calendário, tubo de ensaio, etc.)
+- Descrição humanizada ("Sua próxima consulta de acompanhamento está agendada")
+- Botão CTA grande ("Ver detalhes")
 
-**Zona C — Painel de comando** (inferior, grid 2 colunas em desktop)
-- **Coluna esquerda (2/3)**: Detalhes da etapa selecionada
-  - Responsável + prazo em cards destacados
-  - Pendências como lista com ícones tipados (exame, consulta, questionário, tarefa)
-  - Consultas vinculadas com status chip e data
-  - Exames vinculados com resultado quando disponível
-  - Tarefas vinculadas com prioridade visual
-  - Questionários pendentes da etapa
-  - Botão "Avançar Etapa" grande e primário (com confirmação)
-  - Botões secundários: Solicitar Exame, Agendar Retorno, Aplicar PROM
-- **Coluna direita (1/3)**: 
-  - Metas da linha ativa com GoalProgress
-  - Próximo passo com preview do que vem a seguir
-  - Mini-resumo: total pendências, dias na etapa atual
+**Mini jornada simplificada** (3 etapas: anterior → atual → próxima)
+- Vertical, com circles conectados por linha
+- Etapa anterior: check verde + nome
+- Etapa atual: pulse azul + nome + pendência principal em linguagem simples
+- Próxima etapa: cinza + nome
+- Se múltiplas linhas: tabs simples no topo para alternar ("Diabetes", "Pressão", "Peso")
 
-**Multi-linha integrada**
-- Tabs coloridas por linha de cuidado no topo (já existe, melhorar visual)
-- Badge de pendências em cada tab (ex: "Diabetes (3 pendências)")
-- Visão consolidada: card "Resumo Geral" mostrando todas as linhas do paciente com etapa atual de cada uma
+**Próximas consultas** (cards touch-friendly)
+- Cards individuais por consulta (não tabela)
+- Tipo + profissional + data/hora em layout claro
+- Ícone de calendário proeminente
 
-### 2. `ActionPanel.tsx` — Expandir
+**Exames pendentes** (lista simples)
+- Cards com nome do exame + status em linguagem simples ("Aguardando resultado", "Precisa realizar")
+- Sem códigos ou termos técnicos
 
-- Adicionar seção de questionários vinculados (filtrar `mockQuestionnaireResponses` pelo `careLineId`)
-- Botão "Avançar Etapa" com ícone ChevronRight, estilo primário, tamanho grande
-- Adicionar contagem de dias na etapa (calcular a partir do prazo)
-- Separar alertas clínicos e operacionais do paciente filtrados para a etapa
+**Questionários pendentes** (CTAs proeminentes)
+- Cada questionário como card com botão "Responder" grande
+- Descrição amigável ("Nos conte como você está se sentindo")
+- Badge de tempo estimado ("~3 min")
 
-### 3. `GoalProgress.tsx` — Enriquecer
+**Metas clínicas** (visual simplificado)
+- GoalProgress mas com labels amigáveis ("Controle do açúcar", "Colesterol", "Peso")
+- Emojis/ícones em vez de códigos (🎯 no alvo, ⚠️ precisa atenção)
+- Barra de progresso com cores suaves
+- Mensagem positiva quando no alvo ("Parabéns, seu controle está dentro da meta!")
 
-- Adicionar prop `showTrend` com seta indicando tendência (usar `mockParameterRecords` para calcular)
-- Visual mais premium: gradiente na barra de progresso
+**Orientações recentes** (novo)
+- Card com últimas orientações da equipe
+- Mock: 2-3 orientações simples ("Manter caminhada diária de 30 min", "Tomar medicação pela manhã")
+- Ícone de coração/cuidado
 
-### 4. Novo componente: `JourneyProgressBar.tsx`
-- Barra horizontal mostrando progresso geral da jornada (X de Y etapas concluídas)
-- Segmentada por status (verde = concluído, azul = em andamento, cinza = não iniciado, vermelho = atrasado)
+**Rodapé acolhedor**
+- "Sua equipe está acompanhando sua jornada" com avatares da equipe
 
-### 5. Novo componente: `MultiLineOverview.tsx`
-- Card compacto mostrando todas as jornadas ativas do paciente
-- Para cada linha: nome, etapa atual, principal pendência, principal parâmetro fora da meta
-- Útil para pacientes multipatológicos como Maria (diabetes + HAS + obesidade)
+### 2. `mock-data.ts` — Adicionar orientações
+- Adicionar array `mockOrientacoes` com orientações mock por paciente
 
-### 6. Mock data — Adicionar questionários vinculados às etapas
-- Enriquecer `mockQuestionnaireResponses` com `journeyStepId`
-- Adicionar campo `questionariosVinculados` ao tipo `JourneyStep`
-
----
-
-## Resultado esperado
-
-Uma tela que em 3 segundos responde:
-- Onde está o paciente? (timeline com "ETAPA ATUAL")
-- O que está pendente? (pendências tipadas com contagem)
-- Quem precisa agir? (responsável destacado)
-- Qual o próximo passo? (card de próximo passo)
-- O que está fora da meta? (parâmetros em vermelho com tendência)
-
----
+### 3. Ajustes de estilo
+- `max-w-lg` para manter layout narrow/mobile
+- Padding generoso, bordas arredondadas grandes (rounded-2xl)
+- Textos maiores para leitura fácil (text-base mínimo para conteúdo)
+- Touch targets mínimo h-12 para botões
+- Cores mais suaves/quentes no hero
 
 ## Arquivos
 
 | Arquivo | Ação |
 |---|---|
-| `src/pages/JornadaClinica.tsx` | Reescrever — premium command center |
-| `src/components/shared/ActionPanel.tsx` | Expandir — questionários, avançar etapa |
-| `src/components/shared/GoalProgress.tsx` | Adicionar tendência |
-| `src/components/shared/JourneyProgressBar.tsx` | Novo — barra de progresso segmentada |
-| `src/components/shared/MultiLineOverview.tsx` | Novo — resumo multi-linha |
-| `src/data/types.ts` | Adicionar `questionariosVinculados` em JourneyStep |
-| `src/data/mock-data.ts` | Vincular questionários às etapas |
+| `src/pages/DashboardPaciente.tsx` | Reescrever — mobile-first acolhedor |
+| `src/data/mock-data.ts` | Adicionar `mockOrientacoes` |
 
