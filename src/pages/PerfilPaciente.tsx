@@ -1,15 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { mockPatients } from '@/data/mock-patients';
-import { mockJourneys, mockParameterRecords, mockAppointments, mockTasks } from '@/data/mock-data';
+import { mockJourneys, mockParameterRecords, mockAppointments, mockExams, mockTasks, mockAlerts } from '@/data/mock-data';
 import { careLines } from '@/data/care-lines';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { RiskSemaphore } from '@/components/shared/RiskSemaphore';
-import { TimelineStep } from '@/components/shared/TimelineStep';
-import { ArrowLeft, User, Activity, Pill, AlertTriangle } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { parameterDictionary } from '@/data/parameters';
+import { GoalProgress, isOutOfTarget } from '@/components/shared/GoalProgress';
+import { ArrowLeft, User, Activity, Pill, AlertTriangle, ArrowRight } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { cn } from '@/lib/utils';
 
 export default function PerfilPaciente() {
   const { id } = useParams();
@@ -21,12 +21,20 @@ export default function PerfilPaciente() {
   const records = mockParameterRecords.filter(r => r.patientId === id);
   const appointments = mockAppointments.filter(a => a.patientId === id);
   const tasks = mockTasks.filter(t => t.patientId === id);
+  const alerts = mockAlerts.filter(a => a.patientId === id && !a.lido);
   const activeLines = careLines.filter(l => patient.linhasAtivas.includes(l.id));
 
+  // Build timeline events
+  const timelineEvents = [
+    ...appointments.map(a => ({ date: a.data, type: 'consulta' as const, label: `${a.tipo} — ${a.profissional}`, status: a.status })),
+    ...mockExams.filter(e => e.patientId === id).map(e => ({ date: e.dataSolicitacao, type: 'exame' as const, label: e.tipo, status: e.status })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
+
   const hba1cData = records.filter(r => r.field === 'hba1c').map(r => ({ date: r.date.substring(5), value: r.value }));
+  const hba1cGoal = patient.goals.find(g => g.field === 'hba1c');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Button variant="ghost" size="sm" onClick={() => navigate('/pacientes')} className="gap-1 -ml-2">
         <ArrowLeft className="h-4 w-4" /> Voltar
       </Button>
@@ -48,6 +56,42 @@ export default function PerfilPaciente() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Situação Atual — por linha ativa */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {journeys.map(j => {
+          const line = careLines.find(l => l.id === j.careLineId);
+          const currentStep = j.steps[j.currentStepIndex];
+          const lineGoals = patient.goals.filter(g => g.careLineId === j.careLineId);
+          const outGoals = lineGoals.filter(g => isOutOfTarget(g));
+          const topPendencia = currentStep?.pendencias[0];
+
+          return (
+            <Card key={j.id} className="border-l-2 cursor-pointer hover:bg-muted/30 transition-colors" style={{ borderLeftColor: line?.color }} onClick={() => navigate('/jornadas')}>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold" style={{ color: line?.color }}>{line?.name}</p>
+                  <StatusChip status={j.status === 'ativa' ? 'em_andamento' : 'concluido'} className="text-[9px]" />
+                </div>
+                <p className="text-sm font-semibold text-foreground">Etapa: {currentStep?.name}</p>
+                {outGoals.length > 0 && (
+                  <div className="space-y-0.5">
+                    {outGoals.map(g => (
+                      <p key={g.field} className="text-[10px] text-[hsl(var(--destructive))]">
+                        ✗ {g.label}: {g.currentValue}{g.unit} (meta {g.operator} {g.target})
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {topPendencia && <p className="text-[10px] text-[hsl(var(--status-pending))]">⚠ {topPendencia}</p>}
+                <div className="flex items-center gap-1 text-[10px] text-primary">
+                  Ver jornada <ArrowRight className="h-3 w-3" />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
@@ -76,18 +120,29 @@ export default function PerfilPaciente() {
           </CardContent>
         </Card>
 
-        {/* Medications */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><Pill className="h-4 w-4 text-primary" /> Medicações</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {patient.medicacoes.map((m, i) => <p key={i} className="text-sm text-foreground">{m}</p>)}
-          </CardContent>
-        </Card>
+        {/* Medications + Goals */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2"><Pill className="h-4 w-4 text-primary" /> Medicações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {patient.medicacoes.map((m, i) => <p key={i} className="text-xs text-foreground">{m}</p>)}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Metas Clínicas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {patient.goals.map(g => <GoalProgress key={g.field} goal={g} compact />)}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Parameter evolution */}
+      {/* Parameter evolution with goal reference line */}
       {hba1cData.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
@@ -99,6 +154,9 @@ export default function PerfilPaciente() {
                 <XAxis dataKey="date" tick={{ fill: 'hsl(215,15%,50%)', fontSize: 10 }} />
                 <YAxis domain={[6, 10]} tick={{ fill: 'hsl(215,15%,50%)', fontSize: 10 }} />
                 <Tooltip contentStyle={{ background: 'hsl(220,18%,12%)', border: '1px solid hsl(220,14%,16%)', borderRadius: 8, color: '#fff', fontSize: 12 }} />
+                {hba1cGoal && (
+                  <ReferenceLine y={hba1cGoal.target} stroke="hsl(152,69%,40%)" strokeDasharray="4 4" label={{ value: `Meta: ${hba1cGoal.target}%`, fill: 'hsl(152,69%,40%)', fontSize: 10, position: 'right' }} />
+                )}
                 <Line type="monotone" dataKey="value" stroke="hsl(355,86%,52%)" strokeWidth={2} dot={{ fill: 'hsl(355,86%,52%)' }} />
               </LineChart>
             </ResponsiveContainer>
@@ -106,25 +164,29 @@ export default function PerfilPaciente() {
         </Card>
       )}
 
-      {/* Journeys */}
-      {journeys.map(j => {
-        const line = careLines.find(l => l.id === j.careLineId);
-        return (
-          <Card key={j.id}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Jornada — {line?.name}</CardTitle>
-                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => navigate('/jornadas')}>Ver completa</Button>
+      {/* Unified timeline */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Timeline de Eventos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-0">
+            {timelineEvents.slice(0, 8).map((evt, i) => (
+              <div key={i} className="flex items-start gap-3 py-2 border-l-2 border-border pl-4 relative">
+                <div className={cn(
+                  'absolute -left-[5px] top-3 h-2.5 w-2.5 rounded-full',
+                  evt.type === 'consulta' ? 'bg-[hsl(var(--info))]' : 'bg-[hsl(var(--status-pending))]'
+                )} />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-foreground">{evt.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{evt.date}</p>
+                </div>
+                <StatusChip status={evt.status} className="text-[9px]" />
               </div>
-            </CardHeader>
-            <CardContent>
-              {j.steps.map((step, i) => (
-                <TimelineStep key={step.id} step={step} isLast={i === j.steps.length - 1} isCurrent={i === j.currentStepIndex} />
-              ))}
-            </CardContent>
-          </Card>
-        );
-      })}
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

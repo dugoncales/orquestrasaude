@@ -1,41 +1,121 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, FlaskConical, ClipboardList, Target, ArrowRight, Heart } from 'lucide-react';
+import { Calendar, FlaskConical, ClipboardList, Target, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { mockAppointments, mockExams, mockQuestionnaireResponses, mockJourneys } from '@/data/mock-data';
+import { mockPatients } from '@/data/mock-patients';
 import { careLines } from '@/data/care-lines';
 import { StatusChip } from '@/components/shared/StatusChip';
-import { TimelineStep } from '@/components/shared/TimelineStep';
+import { GoalProgress, isOutOfTarget } from '@/components/shared/GoalProgress';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPaciente() {
   const patientId = 'p1';
+  const patient = mockPatients.find(p => p.id === patientId)!;
   const appointments = mockAppointments.filter(a => a.patientId === patientId && a.status === 'agendada');
   const exams = mockExams.filter(e => e.patientId === patientId && e.status !== 'resultado_disponivel');
   const questionnaires = mockQuestionnaireResponses.filter(q => q.patientId === patientId && q.status === 'pendente');
   const journeys = mockJourneys.filter(j => j.patientId === patientId);
-  const activeLines = careLines.filter(l => ['diabetes', 'hipertensao', 'obesidade'].includes(l.id));
+  const activeLines = careLines.filter(l => patient.linhasAtivas.includes(l.id));
+  const outOfTargetGoals = patient.goals.filter(g => isOutOfTarget(g));
+
+  // Primary next step
+  const primaryJourney = journeys[0];
+  const nextStepName = primaryJourney?.steps[primaryJourney.currentStepIndex]?.name;
+  const nextStepPendencias = primaryJourney?.steps[primaryJourney.currentStepIndex]?.pendencias || [];
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      {/* Welcome */}
+    <div className="space-y-5 max-w-4xl">
+      {/* Welcome + Next Step Hero */}
       <div className="rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 p-6">
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-3">
           <Heart className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold text-foreground">Olá, Maria!</h1>
         </div>
-        <p className="text-sm text-muted-foreground">Você está acompanhada em {activeLines.length} linhas de cuidado. Veja abaixo seu resumo e próximos passos.</p>
+        <div className="bg-card/60 rounded-lg p-4 border border-border">
+          <div className="flex items-center gap-2 mb-1">
+            <MapPin className="h-4 w-4 text-primary" />
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Seu Próximo Passo</p>
+          </div>
+          <p className="text-lg font-bold text-foreground">{nextStepName}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Você está em acompanhamento em {activeLines.length} linhas de cuidado.
+            {nextStepPendencias.length > 0 && ` ${nextStepPendencias[0]}.`}
+          </p>
+        </div>
       </div>
 
-      {/* Active care lines */}
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-        {activeLines.map(line => (
-          <Card key={line.id} className="border-l-2" style={{ borderLeftColor: line.color }}>
-            <CardContent className="p-4">
-              <p className="text-sm font-semibold text-foreground">{line.name}</p>
-              <p className="text-xs text-muted-foreground mt-1">Etapa: Seguimento</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Out of target alerts */}
+      {outOfTargetGoals.length > 0 && (
+        <Card className="border-[hsl(var(--status-pending))]/30 bg-[hsl(var(--status-pending-bg))]">
+          <CardContent className="p-4">
+            <p className="text-xs font-semibold text-[hsl(var(--status-pending))] mb-2">⚠ Atenção: parâmetros fora da meta</p>
+            <div className="space-y-1">
+              {outOfTargetGoals.map(g => (
+                <p key={g.field} className="text-sm text-foreground">
+                  <strong>{g.label}</strong>: {g.currentValue}{g.unit} — meta {g.operator} {g.target}{g.unit}
+                </p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Mini timeline — 3 steps */}
+      {primaryJourney && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                Sua Jornada — {careLines.find(l => l.id === primaryJourney.careLineId)?.name}
+              </CardTitle>
+              <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">Ver completa <ArrowRight className="h-3 w-3" /></Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-0">
+              {[primaryJourney.currentStepIndex - 1, primaryJourney.currentStepIndex, primaryJourney.currentStepIndex + 1]
+                .filter(i => i >= 0 && i < primaryJourney.steps.length)
+                .map(i => {
+                  const step = primaryJourney.steps[i];
+                  const isCurrent = i === primaryJourney.currentStepIndex;
+                  return (
+                    <div key={step.id} className={cn(
+                      'flex items-start gap-3 py-3 border-l-2 pl-4 relative',
+                      isCurrent ? 'border-l-primary bg-primary/5 rounded-r-lg -ml-[2px] pl-[18px]' : 'border-l-border'
+                    )}>
+                      <div className={cn(
+                        'absolute -left-[7px] top-4 h-3 w-3 rounded-full border-2',
+                        step.status === 'concluido' ? 'bg-[hsl(var(--success))] border-[hsl(var(--success))]' :
+                        isCurrent ? 'bg-primary border-primary' : 'bg-secondary border-border'
+                      )} />
+                      <div className="flex-1">
+                        <p className={cn('text-sm font-medium', isCurrent ? 'text-foreground font-semibold' : 'text-muted-foreground')}>
+                          {isCurrent && '→ '}{step.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{step.responsavel}</p>
+                        {isCurrent && step.pendencias.length > 0 && (
+                          <p className="text-xs text-[hsl(var(--status-pending))] mt-1">⚠ {step.pendencias[0]}</p>
+                        )}
+                      </div>
+                      <StatusChip status={step.status} className="text-[9px]" />
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Goals with progress */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2"><Target className="h-4 w-4 text-primary" /> Metas Clínicas</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {patient.goals.map(g => <GoalProgress key={g.field} goal={g} />)}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         {/* Next appointments */}
@@ -70,62 +150,20 @@ export default function DashboardPaciente() {
             ))}
           </CardContent>
         </Card>
-
-        {/* Questionnaires */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><ClipboardList className="h-4 w-4 text-primary" /> Questionários</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {questionnaires.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Todos respondidos ✓</p>
-            ) : (
-              <div className="space-y-2">
-                {questionnaires.map(q => (
-                  <div key={q.id} className="flex items-center justify-between">
-                    <StatusChip status={q.status} />
-                    <Button size="sm" className="h-7 text-xs">Responder</Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Goals */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><Target className="h-4 w-4 text-primary" /> Metas Clínicas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">HbA1c</span>
-              <span className="font-medium text-foreground">7.9% → Meta: &lt; 7%</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Peso</span>
-              <span className="font-medium text-foreground">88kg → Meta: 82kg</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">PA</span>
-              <span className="font-medium text-[hsl(var(--success))]">128/82 → Meta: &lt; 130/80 ✓</span>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Journey preview */}
-      {journeys.length > 0 && (
+      {/* Questionnaires */}
+      {questionnaires.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Jornada — Diabetes Mellitus</CardTitle>
-              <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">Ver completa <ArrowRight className="h-3 w-3" /></Button>
-            </div>
+            <CardTitle className="text-sm flex items-center gap-2"><ClipboardList className="h-4 w-4 text-primary" /> Questionários Pendentes</CardTitle>
           </CardHeader>
-          <CardContent>
-            {journeys[0].steps.slice(Math.max(0, journeys[0].currentStepIndex - 1), journeys[0].currentStepIndex + 3).map((step, i, arr) => (
-              <TimelineStep key={step.id} step={step} isLast={i === arr.length - 1} isCurrent={step.status === 'em_andamento'} />
+          <CardContent className="space-y-2">
+            {questionnaires.map(q => (
+              <div key={q.id} className="flex items-center justify-between">
+                <StatusChip status={q.status} />
+                <Button size="sm" className="h-7 text-xs">Responder</Button>
+              </div>
             ))}
           </CardContent>
         </Card>
