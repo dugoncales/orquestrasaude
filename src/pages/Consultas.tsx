@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { mockAppointments } from '@/data/mock-data';
+import { useState } from 'react';
+import { useAppointments } from '@/hooks/useAppointments';
+import { usePatients } from '@/hooks/usePatients';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/shared/StatusChip';
@@ -7,21 +8,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Calendar, Plus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Consultas() {
-  const { currentRole, currentUser } = useAuth();
+  const { currentRole } = useAuth();
   const isPatient = currentRole === 'patient';
-  const patientId = isPatient ? currentUser.patientId : null;
-
-  const baseData = useMemo(
-    () => patientId ? mockAppointments.filter(a => a.patientId === patientId) : mockAppointments,
-    [patientId]
-  );
+  const { data: patients } = usePatients();
+  const patientId = isPatient ? (patients?.[0]?.id || undefined) : undefined;
+  const { data: appointments, isLoading } = useAppointments(patientId);
+  const baseData = appointments || [];
 
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterProf, setFilterProf] = useState('all');
 
-  const today = baseData.filter(a => a.data === '2025-04-15');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = baseData.filter(a => a.data === todayStr);
   const professionals = [...new Set(baseData.map(a => a.profissional))];
 
   const filtered = baseData.filter(a => {
@@ -29,6 +30,8 @@ export default function Consultas() {
     const matchProf = filterProf === 'all' || a.profissional === filterProf;
     return matchStatus && matchProf;
   });
+
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-32 w-full" /></div>;
 
   return (
     <div className="space-y-6">
@@ -40,10 +43,9 @@ export default function Consultas() {
         {!isPatient && <Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> Nova Consulta</Button>}
       </div>
 
-      {/* Today */}
       <Card className="border-l-2 border-l-primary bg-gradient-to-r from-primary/[0.03] to-transparent">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> Hoje — 15/04/2025</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> Hoje — {new Date().toLocaleDateString('pt-BR')}</CardTitle>
         </CardHeader>
         <CardContent>
           {today.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma consulta hoje</p> : (
@@ -51,7 +53,7 @@ export default function Consultas() {
               {today.map(a => (
                 <div key={a.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                   <div>
-                    {!isPatient && <p className="text-sm font-medium text-foreground">{a.patientName}</p>}
+                    {!isPatient && <p className="text-sm font-medium text-foreground">{a.patient_name}</p>}
                     <p className="text-xs text-muted-foreground">{a.hora} · {a.tipo} · {a.profissional}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -65,12 +67,9 @@ export default function Consultas() {
         </CardContent>
       </Card>
 
-      {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[150px] h-9">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
+          <SelectTrigger className="w-[150px] h-9"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
             <SelectItem value="agendada">Agendada</SelectItem>
@@ -81,9 +80,7 @@ export default function Consultas() {
         </Select>
         {!isPatient && (
           <Select value={filterProf} onValueChange={setFilterProf}>
-            <SelectTrigger className="w-[200px] h-9">
-              <SelectValue placeholder="Profissional" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Profissional" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os profissionais</SelectItem>
               {professionals.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -92,7 +89,6 @@ export default function Consultas() {
         )}
       </div>
 
-      {/* All appointments */}
       <div className="rounded-xl border border-border overflow-hidden">
         <Table className="table-premium">
           <TableHeader>
@@ -110,7 +106,7 @@ export default function Consultas() {
               <TableRow key={a.id}>
                 <TableCell className="text-sm">{a.data}</TableCell>
                 <TableCell className="text-sm">{a.hora}</TableCell>
-                {!isPatient && <TableCell className="text-sm font-medium">{a.patientName}</TableCell>}
+                {!isPatient && <TableCell className="text-sm font-medium">{a.patient_name}</TableCell>}
                 <TableCell className="text-sm hidden md:table-cell">{a.tipo}</TableCell>
                 <TableCell className="text-sm hidden sm:table-cell">{a.profissional}</TableCell>
                 <TableCell><StatusChip status={a.status} /></TableCell>

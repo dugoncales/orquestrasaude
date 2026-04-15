@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { UserRole } from '@/data/types';
-import { mockAlerts } from '@/data/mock-data';
+import { useAlerts } from '@/hooks/useAlerts';
 
 const roleLabels: Record<UserRole, string> = {
   patient: 'Paciente',
@@ -34,8 +34,10 @@ const routeLabels: Record<string, string> = {
 export function AppHeader() {
   const { currentUser, currentRole, setRole } = useAuth();
   const location = useLocation();
-  const unreadAlerts = mockAlerts.filter(a => !a.lido).length;
-  const hasCritical = mockAlerts.some(a => !a.lido && a.severidade === 'critical');
+  const { data: alerts } = useAlerts();
+  const safeAlerts = alerts || [];
+  const unreadAlerts = safeAlerts.filter(a => !a.lido).length;
+  const hasCritical = safeAlerts.some(a => !a.lido && a.severidade === 'critical');
 
   const basePath = '/' + location.pathname.split('/').filter(Boolean)[0];
   const currentModule = routeLabels[location.pathname] || routeLabels[basePath] || '';
