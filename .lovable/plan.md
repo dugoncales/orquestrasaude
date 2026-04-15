@@ -1,47 +1,129 @@
 
 
-# Plano: Filtrar dados por paciente quando role = patient
+# Plano: Transformar Mockup em Sistema Funcional com Lovable Cloud
 
-## Problema
+Migrar toda a aplicação de dados estáticos (mock) para um backend real com Supabase via Lovable Cloud, mantendo o layout atual.
 
-Quando o usuario esta logado como **paciente** (role `patient`), as paginas Consultas, Exames e Questionarios mostram dados de **todos** os pacientes. O DashboardPaciente ja filtra corretamente para `p1`. As demais paginas precisam do mesmo tratamento.
+---
 
-## Solucao
+## 1. Habilitar Lovable Cloud + Configurar Supabase
 
-Usar `useAuth()` em cada pagina para verificar o role. Quando `currentRole === 'patient'`, filtrar os dados mock pelo `patientId` do paciente logado (`p1`, correspondente ao user `u1` no AuthContext).
+Ativar o Lovable Cloud para provisionar banco Supabase automaticamente.
 
-### Mapeamento user -> patient
+## 2. Schema do Banco de Dados (Migrations)
 
-Adicionar ao AuthContext um campo `patientId` para o role patient (valor `'p1'`).
+Criar todas as tabelas com relações entre entidades:
 
-### Paginas afetadas
+```text
+patients ──< journeys ──< journey_steps
+    │              │
+    ├──< appointments (→ journey_steps?)
+    ├──< exams (→ journey_steps?)
+    ├──< tasks (→ journey_steps?)
+    ├──< alerts
+    ├──< parameter_records
+    ├──< questionnaire_responses ──> questionnaires
+    └──< orientacoes
 
-| Pagina | Mudanca |
-|---|---|
-| `src/pages/Consultas.tsx` | Filtrar `mockAppointments` por `patientId` quando role = patient |
-| `src/pages/Exames.tsx` | Filtrar `mockExams` por `patientId` quando role = patient |
-| `src/pages/Questionarios.tsx` | Filtrar `mockQuestionnaireResponses` por `patientId` quando role = patient |
-| `src/contexts/AuthContext.tsx` | Adicionar `patientId?: string` ao User type e popular com `'p1'` para o patient |
-
-### Detalhes
-
-Em cada pagina, no topo do componente:
-```
-const { currentRole, currentUser } = useAuth();
-const patientId = currentRole === 'patient' ? 'p1' : null;
-const baseData = patientId ? mockData.filter(d => d.patientId === patientId) : mockData;
+care_lines ──< journeys
+           ──< questionnaires
+           ──< automation_rules
 ```
 
-Usar `baseData` em vez do mock direto para todos os calculos (KPIs, filtros, tabelas).
+**Tabelas**: `patients`, `care_lines`, `journeys`, `journey_steps`, `appointments`, `exams`, `tasks`, `alerts`, `parameter_records`, `questionnaires`, `questionnaire_responses`, `automation_rules`, `orientacoes`.
 
-Tambem ocultar colunas "Paciente" nas tabelas quando role = patient (ja que so ha um paciente).
+Todas com UUIDs, timestamps, e foreign keys com `ON DELETE CASCADE`.
 
-## Arquivos
+## 3. RLS (Row Level Security)
 
-| Arquivo | Acao |
+- Habilitar RLS em todas as tabelas
+- Políticas permissivas iniciais para `authenticated` (leitura/escrita)
+- Preparar para refinamento futuro por role (patient vê só seus dados, etc.)
+
+## 4. Seed Data
+
+Migração SQL para inserir os dados que hoje estão nos mocks (`mock-patients.ts`, `mock-data.ts`, `care-lines.ts`) como registros reais no banco.
+
+## 5. Integração Supabase no Frontend
+
+### 5.1 Cliente Supabase
+- Criar `src/integrations/supabase/client.ts` com o client configurado
+
+### 5.2 Hooks de dados (`src/hooks/`)
+Criar hooks com React Query para cada entidade:
+- `usePatients()`, `usePatient(id)`
+- `useJourneys(patientId?)`, `useJourneySteps(journeyId)`
+- `useAppointments(filters)`, `useExams(filters)`, `useTasks(filters)`
+- `useAlerts()`, `useParameterRecords(patientId, field)`
+- `useQuestionnaireResponses(filters)`
+- `useCareLines()`
+
+Cada hook retorna `{ data, isLoading, error }` + mutations quando aplicável.
+
+### 5.3 Mutations
+- `useCreateAppointment()`, `useUpdateAppointmentStatus()`
+- `useCreateExam()`, `useUpdateExamStatus()`
+- `useCreateTask()`, `useUpdateTaskStatus()`
+- `useMarkAlertRead()`
+- `useCreateParameterRecord()`
+- `useUpdateJourneyStep()`
+
+## 6. Atualizar Todas as Páginas
+
+Substituir imports de mock por hooks reais. Cada página passa a ler/gravar do Supabase:
+
+| Página | Mudança |
 |---|---|
-| `src/contexts/AuthContext.tsx` | Adicionar `patientId` ao user patient |
-| `src/pages/Consultas.tsx` | Filtrar por paciente quando role = patient |
-| `src/pages/Exames.tsx` | Filtrar por paciente quando role = patient |
-| `src/pages/Questionarios.tsx` | Filtrar por paciente quando role = patient |
+| `Pacientes.tsx` | `usePatients()` + filtros reais |
+| `PerfilPaciente.tsx` | `usePatient(id)` + dados relacionados |
+| `JornadaClinica.tsx` | `useJourneys()` + `useJourneySteps()` |
+| `Consultas.tsx` | `useAppointments()` + criar/atualizar status |
+| `Exames.tsx` | `useExams()` + criar/atualizar status |
+| `Questionarios.tsx` | `useQuestionnaireResponses()` |
+| `DashboardProfissional.tsx` | Hooks combinados para KPIs |
+| `DashboardGestor.tsx` | Hooks combinados para KPIs |
+| `DashboardPaciente.tsx` | Hooks filtrados por patientId |
+| `BI.tsx` | Queries agregadas |
+| `LinhasDeCuidado.tsx` | `useCareLines()` |
+| `StudioAdmin.tsx` | CRUD automation_rules |
+
+## 7. Remover Mocks
+
+Após validação, remover:
+- `src/data/mock-data.ts`
+- `src/data/mock-patients.ts`
+- Referências diretas a dados estáticos
+
+## 8. Ordem de Execução
+
+Dado o volume, implementar em **3 lotes**:
+
+**Lote 1**: Cloud + Schema + Seed + Client + Hooks base (patients, care_lines, journeys)
+**Lote 2**: Hooks restantes (appointments, exams, tasks, alerts, questionnaires, parameters) + Mutations
+**Lote 3**: Atualizar todas as páginas + remover mocks
+
+---
+
+## Arquivos Novos
+
+| Arquivo | Descrição |
+|---|---|
+| `supabase/migrations/001_schema.sql` | Schema completo |
+| `supabase/migrations/002_seed.sql` | Dados iniciais |
+| `supabase/migrations/003_rls.sql` | Políticas RLS |
+| `src/integrations/supabase/client.ts` | Cliente Supabase |
+| `src/integrations/supabase/types.ts` | Types gerados |
+| `src/hooks/usePatients.ts` | Hook pacientes |
+| `src/hooks/useJourneys.ts` | Hook jornadas |
+| `src/hooks/useAppointments.ts` | Hook consultas |
+| `src/hooks/useExams.ts` | Hook exames |
+| `src/hooks/useTasks.ts` | Hook tarefas |
+| `src/hooks/useAlerts.ts` | Hook alertas |
+| `src/hooks/useParameterRecords.ts` | Hook parâmetros clínicos |
+| `src/hooks/useQuestionnaireResponses.ts` | Hook questionários |
+| `src/hooks/useCareLines.ts` | Hook linhas de cuidado |
+
+## Arquivos Editados
+
+Todas as páginas listadas na seção 6 + `src/App.tsx` (provider Supabase).
 
