@@ -1,14 +1,22 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { UserRole, User } from '@/data/types';
+import { UserRole } from '@/data/types';
+
+interface AuthUser {
+  id: string;
+  name: string;
+  role: UserRole;
+  email: string;
+  patientId?: string;
+}
 
 interface AuthContextType {
-  currentUser: User;
+  currentUser: AuthUser;
   currentRole: UserRole;
   setRole: (role: UserRole) => void;
 }
 
-const users: Record<UserRole, User> = {
-  patient: { id: 'u1', name: 'Maria da Silva Santos', role: 'patient', email: 'maria@email.com' },
+const users: Record<UserRole, AuthUser> = {
+  patient: { id: 'u1', name: 'Maria da Silva Santos', role: 'patient', email: 'maria@email.com', patientId: 'p1' },
   professional: { id: 'u2', name: 'Dra. Ana Beatriz', role: 'professional', email: 'ana@clinica.com' },
   manager: { id: 'u3', name: 'Dr. Fernando Gestão', role: 'manager', email: 'fernando@clinica.com' },
   admin: { id: 'u4', name: 'Admin Sistema', role: 'admin', email: 'admin@carejourney.com' },
