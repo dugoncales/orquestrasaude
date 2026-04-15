@@ -1,27 +1,39 @@
-import { Patient, Journey } from '@/data/types';
-import { careLines } from '@/data/care-lines';
+import { PatientGoal, JourneyStep } from '@/data/types';
 import { isOutOfTarget } from './GoalProgress';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useCareLines } from '@/hooks/useCareLines';
+import { mapCareLine, parseGoals, mapStep } from '@/lib/db-helpers';
 
 interface MultiLineOverviewProps {
-  patient: Patient;
-  journeys: Journey[];
+  patient: { goals: unknown; };
+  journeys: Array<{ id: string; care_line_id: string; current_step_index: number | null; }>;
+  steps: Array<{ journey_id: string; step_order: number; name: string; pendencias: string[] | null; status: string; responsavel: string | null; prazo: string | null; data_conclusao: string | null; consultas_vinculadas: string[] | null; exames_vinculados: string[] | null; tarefas_vinculadas: string[] | null; questionarios_vinculados: string[] | null; id: string; }>;
   activeJourneyId: string;
   onSelectJourney: (id: string) => void;
 }
 
-export function MultiLineOverview({ patient, journeys, activeJourneyId, onSelectJourney }: MultiLineOverviewProps) {
+export function MultiLineOverview({ patient, journeys, steps, activeJourneyId, onSelectJourney }: MultiLineOverviewProps) {
+  const { data: careLinesData } = useCareLines();
+  const careLines = (careLinesData || []).map(mapCareLine);
+  const goals = parseGoals(patient.goals);
+
   return (
     <div className="space-y-2">
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Linhas Ativas</p>
       <div className="space-y-1.5">
         {journeys.map(j => {
-          const line = careLines.find(l => l.id === j.careLineId);
-          const currentStep = j.steps[j.currentStepIndex];
-          const lineGoals = patient.goals.filter(g => g.careLineId === j.careLineId);
+          const line = careLines.find(l => l.id === j.care_line_id) || (careLinesData || []).find(c => c.id === j.care_line_id);
+          const lineName = line ? ('name' in line ? line.name : '') : '';
+          const lineColor = line ? ('color' in line ? line.color : '') : '';
+          const lineSlug = line ? ('slug' in line ? (line as any).slug : ('id' in line ? line.id : '')) : '';
+          
+          const journeySteps = steps.filter(s => s.journey_id === j.id).sort((a, b) => a.step_order - b.step_order);
+          const currentIdx = j.current_step_index ?? 0;
+          const currentStep = journeySteps[currentIdx];
+          const lineGoals = goals.filter(g => g.careLineId === lineSlug || g.careLineId === j.care_line_id);
           const outOfTarget = lineGoals.filter(g => isOutOfTarget(g));
-          const totalPendencias = j.steps.reduce((sum, s) => sum + s.pendencias.length, 0);
+          const totalPendencias = journeySteps.reduce((sum, s) => sum + (s.pendencias?.length || 0), 0);
           const isActive = j.id === activeJourneyId;
 
           return (
@@ -36,8 +48,8 @@ export function MultiLineOverview({ patient, journeys, activeJourneyId, onSelect
               )}
             >
               <div className="flex items-center gap-2 mb-1">
-                <div className="h-2 w-2 rounded-full" style={{ background: line?.color }} />
-                <span className="text-xs font-semibold text-foreground">{line?.name}</span>
+                <div className="h-2 w-2 rounded-full" style={{ background: lineColor }} />
+                <span className="text-xs font-semibold text-foreground">{lineName}</span>
                 {totalPendencias > 0 && (
                   <span className="ml-auto text-[9px] font-mono text-[hsl(var(--status-pending))]">
                     {totalPendencias} pend.
@@ -45,7 +57,7 @@ export function MultiLineOverview({ patient, journeys, activeJourneyId, onSelect
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground mb-1">
-                Etapa {j.currentStepIndex + 1}/{j.steps.length}: {currentStep.name}
+                Etapa {currentIdx + 1}/{journeySteps.length}: {currentStep?.name || '—'}
               </p>
               {outOfTarget.length > 0 ? (
                 <div className="flex items-center gap-1 text-[9px] text-[hsl(var(--destructive))]">

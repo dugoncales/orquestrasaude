@@ -1,4 +1,4 @@
-import { mockJourneys } from '@/data/mock-data';
+import { useJourneys } from '@/hooks/useJourneys';
 import { cn } from '@/lib/utils';
 
 const defaultSteps = [
@@ -9,13 +9,13 @@ const defaultSteps = [
 const slaByStep: Record<number, number> = { 0: 3, 1: 5, 2: 7, 3: 5, 4: 10, 5: 30, 6: 7, 7: 14, 8: 30, 9: 60 };
 
 export function JourneyFunnel({ compact = false }: { compact?: boolean }) {
+  const { data: journeys } = useJourneys();
+  const safeJourneys = journeys || [];
+
   const stageCount = defaultSteps.map((_, i) => {
-    const count = mockJourneys.reduce((sum, j) => sum + (j.currentStepIndex === i ? 1 : 0), 0);
-    return count;
+    return safeJourneys.reduce((sum, j) => sum + ((j.current_step_index ?? 0) === i ? 1 : 0), 0);
   });
   const maxCount = Math.max(...stageCount, 1);
-
-  // simulated avg days
   const avgDays = [2, 4, 8, 5, 6, 15, 4, 10, 20, 0];
 
   return (

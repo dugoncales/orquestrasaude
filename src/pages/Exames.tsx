@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { mockExams } from '@/data/mock-data';
+import { useExams } from '@/hooks/useExams';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -8,16 +8,16 @@ import { KPICard } from '@/components/shared/KPICard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePatients } from '@/hooks/usePatients';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Exames() {
-  const { currentRole, currentUser } = useAuth();
+  const { currentRole } = useAuth();
   const isPatient = currentRole === 'patient';
-  const patientId = isPatient ? currentUser.patientId : null;
-
-  const baseData = useMemo(
-    () => patientId ? mockExams.filter(e => e.patientId === patientId) : mockExams,
-    [patientId]
-  );
+  const { data: patients } = usePatients();
+  const patientId = isPatient ? (patients?.[0]?.id || undefined) : undefined;
+  const { data: exams, isLoading } = useExams(patientId);
+  const baseData = exams || [];
 
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -25,6 +25,8 @@ export default function Exames() {
   const delayed = baseData.filter(e => e.status === 'atrasado');
 
   const filtered = filterStatus === 'all' ? baseData : baseData.filter(e => e.status === filterStatus);
+
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-32 w-full" /></div>;
 
   return (
     <div className="space-y-6">
@@ -71,9 +73,9 @@ export default function Exames() {
           <TableBody>
             {filtered.map(e => (
               <TableRow key={e.id} className={e.status === 'atrasado' ? 'border-l-2 border-l-[hsl(var(--destructive))]' : ''}>
-                {!isPatient && <TableCell className="text-sm font-medium">{e.patientName}</TableCell>}
+                {!isPatient && <TableCell className="text-sm font-medium">{e.patient_name}</TableCell>}
                 <TableCell className="text-sm">{e.tipo}</TableCell>
-                <TableCell className="text-sm hidden md:table-cell">{e.dataSolicitacao}</TableCell>
+                <TableCell className="text-sm hidden md:table-cell">{e.data_solicitacao}</TableCell>
                 <TableCell className="text-sm hidden sm:table-cell">
                   {e.resultado ? (
                     <Badge variant="secondary" className="text-[10px]">{e.resultado}</Badge>

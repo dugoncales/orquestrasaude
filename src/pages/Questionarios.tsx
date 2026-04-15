@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
-import { mockQuestionnaireResponses } from '@/data/mock-data';
-import { careLines } from '@/data/care-lines';
+import { useState } from 'react';
+import { useQuestionnaireResponses } from '@/hooks/useQuestionnaireResponses';
+import { useCareLines } from '@/hooks/useCareLines';
+import { usePatients } from '@/hooks/usePatients';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { KPICard } from '@/components/shared/KPICard';
@@ -9,6 +10,8 @@ import { ClipboardList, CheckCircle, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { Skeleton } from '@/components/ui/skeleton';
+import { mapCareLine } from '@/lib/db-helpers';
 
 function getScoreColor(pct: number) {
   if (pct >= 70) return 'bg-[hsl(var(--success))]';
@@ -17,23 +20,28 @@ function getScoreColor(pct: number) {
 }
 
 export default function Questionarios() {
-  const { currentRole, currentUser } = useAuth();
+  const { currentRole } = useAuth();
   const isPatient = currentRole === 'patient';
-  const patientId = isPatient ? currentUser.patientId : null;
-
-  const baseData = useMemo(
-    () => patientId ? mockQuestionnaireResponses.filter(q => q.patientId === patientId) : mockQuestionnaireResponses,
-    [patientId]
-  );
+  const { data: patients } = usePatients();
+  const patientId = isPatient ? (patients?.[0]?.id || undefined) : undefined;
+  const { data: responses, isLoading } = useQuestionnaireResponses(patientId);
+  const { data: careLinesData } = useCareLines();
+  const careLines = (careLinesData || []).map(mapCareLine);
+  const baseData = responses || [];
 
   const [filterLine, setFilterLine] = useState('all');
 
   const respondidos = baseData.filter(q => q.status === 'respondido');
   const pendentes = baseData.filter(q => q.status === 'pendente' || q.status === 'atrasado');
 
-  const filteredAll = filterLine === 'all' ? baseData : baseData.filter(q => q.careLineId === filterLine);
+  const filteredAll = filterLine === 'all' ? baseData : baseData.filter(q => {
+    const cl = (careLinesData || []).find(c => c.id === q.care_line_id);
+    return cl?.slug === filterLine;
+  });
   const filteredPending = filteredAll.filter(q => q.status === 'pendente' || q.status === 'atrasado');
   const filteredAnswered = filteredAll.filter(q => q.status === 'respondido');
+
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-32 w-full" /></div>;
 
   return (
     <div className="space-y-6">
@@ -50,9 +58,7 @@ export default function Questionarios() {
 
       <div className="flex gap-3 flex-wrap items-center">
         <Select value={filterLine} onValueChange={setFilterLine}>
-          <SelectTrigger className="w-[200px] h-9">
-            <SelectValue placeholder="Linha de cuidado" />
-          </SelectTrigger>
+          <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Linha de cuidado" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as linhas</SelectItem>
             {careLines.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
@@ -66,21 +72,15 @@ export default function Questionarios() {
           <TabsTrigger value="pending">Pendentes</TabsTrigger>
           <TabsTrigger value="answered">Respondidos</TabsTrigger>
         </TabsList>
-        <TabsContent value="all">
-          <QuestionnaireTable data={filteredAll} isPatient={isPatient} />
-        </TabsContent>
-        <TabsContent value="pending">
-          <QuestionnaireTable data={filteredPending} isPatient={isPatient} />
-        </TabsContent>
-        <TabsContent value="answered">
-          <QuestionnaireTable data={filteredAnswered} isPatient={isPatient} />
-        </TabsContent>
+        <TabsContent value="all"><QTable data={filteredAll} isPatient={isPatient} careLines={careLines} careLinesRaw={careLinesData || []} /></TabsContent>
+        <TabsContent value="pending"><QTable data={filteredPending} isPatient={isPatient} careLines={careLines} careLinesRaw={careLinesData || []} /></TabsContent>
+        <TabsContent value="answered"><QTable data={filteredAnswered} isPatient={isPatient} careLines={careLines} careLinesRaw={careLinesData || []} /></TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function QuestionnaireTable({ data, isPatient }: { data: typeof mockQuestionnaireResponses; isPatient: boolean }) {
+function QTable({ data, isPatient, careLines, careLinesRaw }: { data: any[]; isPatient: boolean; careLines: any[]; careLinesRaw: any[] }) {
   return (
     <div className="rounded-xl border border-border overflow-hidden mt-4">
       <Table className="table-premium">
@@ -95,30 +95,28 @@ function QuestionnaireTable({ data, isPatient }: { data: typeof mockQuestionnair
         </TableHeader>
         <TableBody>
           {data.map(q => {
-            const line = careLines.find(l => l.id === q.careLineId);
-            const isProm = line?.proms.some(() => true);
-            const pct = q.maxScore > 0 ? (q.score / q.maxScore) * 100 : 0;
+            const clRaw = careLinesRaw.find(c => c.id === q.care_line_id);
+            const line = clRaw ? careLines.find(l => l.id === clRaw.slug) : undefined;
+            const pct = (q.max_score || 0) > 0 ? ((q.score || 0) / q.max_score) * 100 : 0;
 
             return (
               <TableRow key={q.id}>
-                {!isPatient && <TableCell className="text-sm font-medium">{q.patientName}</TableCell>}
+                {!isPatient && <TableCell className="text-sm font-medium">{q.patient_name}</TableCell>}
                 <TableCell>
                   <span className="status-chip text-[10px]" style={{ background: line ? line.color + '22' : undefined, color: line?.color }}>
-                    {line?.name.split(' ')[0] || q.careLineId}
+                    {line?.name.split(' ')[0] || '—'}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={isProm ? 'default' : 'secondary'} className="text-[9px]">
-                    {isProm ? 'PROM' : 'PREM'}
-                  </Badge>
+                  <Badge variant="default" className="text-[9px]">PROM</Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   {q.status === 'respondido' ? (
                     <div className="flex items-center gap-2">
                       <div className="w-16 h-2 rounded-full bg-secondary overflow-hidden">
-                        <div className={`h-full rounded-full ${getScoreColor(pct)}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-full rounded-full ${pct >= 70 ? 'bg-[hsl(var(--success))]' : pct >= 40 ? 'bg-[hsl(var(--warning))]' : 'bg-[hsl(var(--destructive))]'}`} style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="text-xs font-mono">{q.score}/{q.maxScore}</span>
+                      <span className="text-xs font-mono">{q.score}/{q.max_score}</span>
                     </div>
                   ) : '—'}
                 </TableCell>
