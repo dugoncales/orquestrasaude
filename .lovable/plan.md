@@ -1,129 +1,85 @@
 
 
-# Plano: Transformar Mockup em Sistema Funcional com Lovable Cloud
+# Plano: Lote 2+3 — Migrar Todas as Páginas para Dados Reais
 
-Migrar toda a aplicação de dados estáticos (mock) para um backend real com Supabase via Lovable Cloud, mantendo o layout atual.
+Substituir todas as referências a `mockData`, `mockPatients` e `careLines` estáticos por hooks Supabase já criados no Lote 1. Depois, remover os arquivos mock.
+
+O banco já tem dados seed (8 pacientes, 6 care lines, 8 jornadas, 80 steps, 8 consultas, 6 exames, 6 tarefas, 6 alertas).
 
 ---
 
-## 1. Habilitar Lovable Cloud + Configurar Supabase
+## Desafio Principal: Mapeamento de Campos
 
-Ativar o Lovable Cloud para provisionar banco Supabase automaticamente.
+Os mocks usam `camelCase` (ex: `patientId`, `careLineId`, `dataSolicitacao`), mas o banco usa `snake_case` (ex: `patient_id`, `care_line_id`, `data_solicitacao`). Além disso, os mocks de `journeys` incluem `steps` inline, mas no banco `journey_steps` é uma tabela separada.
 
-## 2. Schema do Banco de Dados (Migrations)
+Cada página precisa adaptar o acesso aos campos e lidar com estados de loading.
 
-Criar todas as tabelas com relações entre entidades:
+---
 
-```text
-patients ──< journeys ──< journey_steps
-    │              │
-    ├──< appointments (→ journey_steps?)
-    ├──< exams (→ journey_steps?)
-    ├──< tasks (→ journey_steps?)
-    ├──< alerts
-    ├──< parameter_records
-    ├──< questionnaire_responses ──> questionnaires
-    └──< orientacoes
+## Mudanças por Arquivo
 
-care_lines ──< journeys
-           ──< questionnaires
-           ──< automation_rules
+### 1. Páginas — substituir imports mock por hooks
+
+| Página | Hooks usados | Mudanças principais |
+|---|---|---|
+| `Pacientes.tsx` | `usePatients`, `useCareLines` | Trocar `mockPatients`/`careLines` por dados do hook. Campos: `risk_level`, `linhas_ativas`, `score_risco`, `dias_sem_retorno`, `diagnosticos_ativos`. Loading state. |
+| `PerfilPaciente.tsx` | `usePatient(id)`, `useJourneys`, `useAppointments`, `useExams`, `useTasks`, `useAlerts`, `useParameterRecords`, `useCareLines` | Montar timeline de eventos com dados reais. Campos snake_case. |
+| `JornadaClinica.tsx` | `usePatients`, `useJourneys`, `useJourneySteps`, `useAppointments`, `useExams`, `useTasks`, `useAlerts`, `useQuestionnaireResponses`, `useParameterRecords`, `useCareLines` | Mais complexa. Steps vêm de `useJourneySteps(journeyId)` (tabela separada). Montar vinculações step→entidades via `journey_step_id`. |
+| `Consultas.tsx` | `useAppointments`, `useCareLines` | Filtros por status/profissional. Campos: `patient_name`, `patient_id`. |
+| `Exames.tsx` | `useExams` | Filtro por status. Campos: `data_solicitacao`, `patient_name`. |
+| `Questionarios.tsx` | `useQuestionnaireResponses`, `useCareLines` | Filtro por care_line. Join `questionnaires` para tipo. Campos: `patient_name`, `care_line_id`, `max_score`. |
+| `DashboardProfissional.tsx` | `usePatients`, `useAppointments`, `useTasks`, `useAlerts`, `useJourneys`, `useCareLines`, `useExams` | KPIs calculados com dados reais. |
+| `DashboardGestor.tsx` | `usePatients`, `useAppointments`, `useTasks`, `useJourneys`, `useAlerts`, `useCareLines` | KPIs executivos. `mockAIInsights` mantido inline (não é entidade do banco). |
+| `DashboardPaciente.tsx` | `usePatient`, `useJourneys`, `useJourneySteps`, `useAppointments`, `useExams`, `useQuestionnaireResponses`, `useOrientacoes`, `useCareLines` | Filtrar por patientId do auth context. |
+| `BI.tsx` | `usePatients`, `useJourneys`, `useAppointments`, `useExams`, `useTasks`, `useQuestionnaireResponses`, `useParameterRecords`, `useCareLines` | Cálculos agregados com dados reais. |
+| `LinhasDeCuidado.tsx` | `useCareLines`, `usePatients` | Cards de linhas + pacientes prioritários. Manter `parameterDictionary` (config estática, não mock). |
+| `StudioAdmin.tsx` | `useAutomationRules`, `useCareLines` | `mockAutomationRules`, `mockPermissionsMatrix` → hooks reais para rules. Permissions matrix mantida inline (config). |
+
+### 2. Componentes compartilhados
+
+| Componente | Mudança |
+|---|---|
+| `JourneyFunnel.tsx` | Receber `journeys` como prop em vez de importar `mockJourneys` |
+| `AppHeader.tsx` | Usar `useAlerts` em vez de `mockAlerts` |
+
+### 3. Hooks — pequenos ajustes
+
+- `useAlerts`: adicionar filtro `lido = false` opcional
+- `useAppointments`: adicionar filtro por `patient_id` opcional
+
+### 4. Padrão para loading/error em cada página
+
+Cada página terá:
+```tsx
+const { data: patients, isLoading } = usePatients();
+if (isLoading) return <Skeleton />;
+const safePatients = patients || [];
 ```
 
-**Tabelas**: `patients`, `care_lines`, `journeys`, `journey_steps`, `appointments`, `exams`, `tasks`, `alerts`, `parameter_records`, `questionnaires`, `questionnaire_responses`, `automation_rules`, `orientacoes`.
+### 5. Remover arquivos mock
 
-Todas com UUIDs, timestamps, e foreign keys com `ON DELETE CASCADE`.
+Após a migração:
+- `src/data/mock-data.ts` — deletar
+- `src/data/mock-patients.ts` — deletar
+- `src/data/care-lines.ts` — deletar (dados agora no banco)
 
-## 3. RLS (Row Level Security)
+Manter:
+- `src/data/types.ts` — tipos usados na UI
+- `src/data/parameters.ts` — dicionário de parâmetros (config, não mock)
 
-- Habilitar RLS em todas as tabelas
-- Políticas permissivas iniciais para `authenticated` (leitura/escrita)
-- Preparar para refinamento futuro por role (patient vê só seus dados, etc.)
+### 6. AuthContext
 
-## 4. Seed Data
-
-Migração SQL para inserir os dados que hoje estão nos mocks (`mock-patients.ts`, `mock-data.ts`, `care-lines.ts`) como registros reais no banco.
-
-## 5. Integração Supabase no Frontend
-
-### 5.1 Cliente Supabase
-- Criar `src/integrations/supabase/client.ts` com o client configurado
-
-### 5.2 Hooks de dados (`src/hooks/`)
-Criar hooks com React Query para cada entidade:
-- `usePatients()`, `usePatient(id)`
-- `useJourneys(patientId?)`, `useJourneySteps(journeyId)`
-- `useAppointments(filters)`, `useExams(filters)`, `useTasks(filters)`
-- `useAlerts()`, `useParameterRecords(patientId, field)`
-- `useQuestionnaireResponses(filters)`
-- `useCareLines()`
-
-Cada hook retorna `{ data, isLoading, error }` + mutations quando aplicável.
-
-### 5.3 Mutations
-- `useCreateAppointment()`, `useUpdateAppointmentStatus()`
-- `useCreateExam()`, `useUpdateExamStatus()`
-- `useCreateTask()`, `useUpdateTaskStatus()`
-- `useMarkAlertRead()`
-- `useCreateParameterRecord()`
-- `useUpdateJourneyStep()`
-
-## 6. Atualizar Todas as Páginas
-
-Substituir imports de mock por hooks reais. Cada página passa a ler/gravar do Supabase:
-
-| Página | Mudança |
-|---|---|
-| `Pacientes.tsx` | `usePatients()` + filtros reais |
-| `PerfilPaciente.tsx` | `usePatient(id)` + dados relacionados |
-| `JornadaClinica.tsx` | `useJourneys()` + `useJourneySteps()` |
-| `Consultas.tsx` | `useAppointments()` + criar/atualizar status |
-| `Exames.tsx` | `useExams()` + criar/atualizar status |
-| `Questionarios.tsx` | `useQuestionnaireResponses()` |
-| `DashboardProfissional.tsx` | Hooks combinados para KPIs |
-| `DashboardGestor.tsx` | Hooks combinados para KPIs |
-| `DashboardPaciente.tsx` | Hooks filtrados por patientId |
-| `BI.tsx` | Queries agregadas |
-| `LinhasDeCuidado.tsx` | `useCareLines()` |
-| `StudioAdmin.tsx` | CRUD automation_rules |
-
-## 7. Remover Mocks
-
-Após validação, remover:
-- `src/data/mock-data.ts`
-- `src/data/mock-patients.ts`
-- Referências diretas a dados estáticos
-
-## 8. Ordem de Execução
-
-Dado o volume, implementar em **3 lotes**:
-
-**Lote 1**: Cloud + Schema + Seed + Client + Hooks base (patients, care_lines, journeys)
-**Lote 2**: Hooks restantes (appointments, exams, tasks, alerts, questionnaires, parameters) + Mutations
-**Lote 3**: Atualizar todas as páginas + remover mocks
+O `AuthContext` ainda usa IDs hardcoded (`p1`, `u1`, etc.). Os patient IDs no banco agora são UUIDs. Precisamos mapear o `patientId` do contexto para o UUID real do banco. Solução: buscar o paciente por nome ou criar um mapeamento fixo no seed. Como a autenticação real virá depois, manter o role switcher funcional com um lookup por nome.
 
 ---
 
-## Arquivos Novos
+## Ordem de implementação
 
-| Arquivo | Descrição |
-|---|---|
-| `supabase/migrations/001_schema.sql` | Schema completo |
-| `supabase/migrations/002_seed.sql` | Dados iniciais |
-| `supabase/migrations/003_rls.sql` | Políticas RLS |
-| `src/integrations/supabase/client.ts` | Cliente Supabase |
-| `src/integrations/supabase/types.ts` | Types gerados |
-| `src/hooks/usePatients.ts` | Hook pacientes |
-| `src/hooks/useJourneys.ts` | Hook jornadas |
-| `src/hooks/useAppointments.ts` | Hook consultas |
-| `src/hooks/useExams.ts` | Hook exames |
-| `src/hooks/useTasks.ts` | Hook tarefas |
-| `src/hooks/useAlerts.ts` | Hook alertas |
-| `src/hooks/useParameterRecords.ts` | Hook parâmetros clínicos |
-| `src/hooks/useQuestionnaireResponses.ts` | Hook questionários |
-| `src/hooks/useCareLines.ts` | Hook linhas de cuidado |
-
-## Arquivos Editados
-
-Todas as páginas listadas na seção 6 + `src/App.tsx` (provider Supabase).
+1. Ajustar hooks existentes (filtros adicionais)
+2. Atualizar `JourneyFunnel` e `AppHeader` (componentes shared)
+3. Atualizar páginas simples: `Consultas`, `Exames`, `Questionarios`
+4. Atualizar páginas médias: `Pacientes`, `PerfilPaciente`, `LinhasDeCuidado`
+5. Atualizar páginas complexas: `JornadaClinica`, `DashboardProfissional`, `DashboardGestor`, `DashboardPaciente`, `BI`, `StudioAdmin`
+6. Ajustar `AuthContext` para UUIDs do banco
+7. Deletar arquivos mock
 
