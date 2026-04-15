@@ -34,7 +34,7 @@ export function useUpdateExamStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status, resultado, data_resultado }: { id: string; status: string; resultado?: string; data_resultado?: string }) => {
-      const updates: Record<string, any> = { status };
+      const updates: Database['public']['Tables']['exams']['Update'] = { status };
       if (resultado !== undefined) updates.resultado = resultado;
       if (data_resultado !== undefined) updates.data_resultado = data_resultado;
       const { data, error } = await supabase.from('exams').update(updates).eq('id', id).select().single();
