@@ -6,93 +6,93 @@
 
 @layer base {
   :root {
-    --background: 216 22% 7%;
-    --foreground: 210 30% 92%;
+    --background: 210 20% 98%;
+    --foreground: 216 20% 12%;
 
-    --card: 216 20% 9%;
-    --card-foreground: 210 30% 92%;
+    --card: 0 0% 100%;
+    --card-foreground: 216 20% 12%;
 
-    --popover: 216 20% 11%;
-    --popover-foreground: 210 30% 92%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 20% 12%;
 
     --primary: 207 100% 31%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 216 18% 14%;
-    --secondary-foreground: 210 30% 90%;
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 216 20% 18%;
 
-    --muted: 216 16% 12%;
-    --muted-foreground: 215 15% 50%;
+    --muted: 210 14% 93%;
+    --muted-foreground: 215 12% 45%;
 
-    --accent: 207 50% 14%;
-    --accent-foreground: 207 100% 70%;
+    --accent: 207 40% 92%;
+    --accent-foreground: 207 100% 28%;
 
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 216 16% 14%;
-    --input: 216 16% 14%;
+    --border: 214 14% 89%;
+    --input: 214 14% 89%;
     --ring: 207 100% 31%;
 
     --radius: 1rem;
 
-    --sidebar-background: 216 22% 5%;
-    --sidebar-foreground: 210 15% 55%;
+    --sidebar-background: 210 18% 96%;
+    --sidebar-foreground: 215 12% 45%;
     --sidebar-primary: 207 100% 31%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 207 50% 11%;
-    --sidebar-accent-foreground: 207 100% 70%;
-    --sidebar-border: 216 16% 12%;
+    --sidebar-accent: 207 40% 92%;
+    --sidebar-accent-foreground: 207 100% 28%;
+    --sidebar-border: 214 14% 89%;
     --sidebar-ring: 207 100% 31%;
 
     /* Status colors */
-    --status-scheduled: 207 100% 50%;
-    --status-scheduled-bg: 207 40% 14%;
-    --status-pending: 40 96% 50%;
-    --status-pending-bg: 40 40% 14%;
-    --status-completed: 152 69% 40%;
-    --status-completed-bg: 152 30% 14%;
-    --status-waiting: 25 95% 53%;
-    --status-waiting-bg: 25 40% 14%;
+    --status-scheduled: 207 100% 40%;
+    --status-scheduled-bg: 207 60% 92%;
+    --status-pending: 40 96% 45%;
+    --status-pending-bg: 40 60% 92%;
+    --status-completed: 152 69% 35%;
+    --status-completed-bg: 152 50% 92%;
+    --status-waiting: 25 95% 48%;
+    --status-waiting-bg: 25 60% 92%;
     --status-critical: 0 72% 50%;
-    --status-critical-bg: 0 40% 14%;
+    --status-critical-bg: 0 50% 94%;
 
     /* Semantic */
-    --success: 152 69% 40%;
+    --success: 152 69% 35%;
     --success-foreground: 0 0% 100%;
-    --warning: 40 96% 50%;
+    --warning: 40 96% 45%;
     --warning-foreground: 0 0% 12%;
-    --info: 207 100% 50%;
+    --info: 207 100% 40%;
     --info-foreground: 0 0% 100%;
   }
 
   .dark {
-    --background: 216 22% 5%;
-    --foreground: 0 0% 95%;
-    --card: 216 20% 7%;
-    --card-foreground: 0 0% 95%;
-    --popover: 216 20% 9%;
-    --popover-foreground: 0 0% 95%;
+    --background: 216 22% 7%;
+    --foreground: 210 30% 92%;
+    --card: 216 20% 9%;
+    --card-foreground: 210 30% 92%;
+    --popover: 216 20% 11%;
+    --popover-foreground: 210 30% 92%;
     --primary: 207 100% 35%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 216 18% 12%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 216 16% 10%;
-    --muted-foreground: 0 0% 55%;
-    --accent: 207 50% 11%;
+    --secondary: 216 18% 14%;
+    --secondary-foreground: 210 30% 90%;
+    --muted: 216 16% 12%;
+    --muted-foreground: 215 15% 50%;
+    --accent: 207 50% 14%;
     --accent-foreground: 207 100% 70%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 95%;
-    --border: 216 16% 12%;
-    --input: 216 16% 12%;
+    --border: 216 16% 14%;
+    --input: 216 16% 14%;
     --ring: 207 100% 35%;
-    --sidebar-background: 216 22% 4%;
-    --sidebar-foreground: 0 0% 55%;
+    --sidebar-background: 216 22% 5%;
+    --sidebar-foreground: 210 15% 55%;
     --sidebar-primary: 207 100% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 207 50% 9%;
+    --sidebar-accent: 207 50% 11%;
     --sidebar-accent-foreground: 207 100% 70%;
-    --sidebar-border: 216 16% 10%;
+    --sidebar-border: 216 16% 12%;
     --sidebar-ring: 207 100% 35%;
   }
 }
