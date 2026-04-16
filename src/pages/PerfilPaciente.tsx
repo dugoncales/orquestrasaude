@@ -1,12 +1,19 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockPatients } from '@/data/mock-patients';
-import { mockJourneys, mockParameterRecords, mockAppointments, mockExams, mockTasks, mockAlerts } from '@/data/mock-data';
-import { careLines } from '@/data/care-lines';
+import { usePatient } from '@/hooks/usePatients';
+import { useJourneys } from '@/hooks/useJourneys';
+import { useAppointments } from '@/hooks/useAppointments';
+import { useExams } from '@/hooks/useExams';
+import { useTasks } from '@/hooks/useTasks';
+import { useAlerts } from '@/hooks/useAlerts';
+import { useParameterRecords } from '@/hooks/useParameterRecords';
+import { useCareLines } from '@/hooks/useCareLines';
+import { parseGoals, riskLevel, mapCareLine } from '@/lib/db-helpers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { RiskSemaphore } from '@/components/shared/RiskSemaphore';
 import { GoalProgress, isOutOfTarget } from '@/components/shared/GoalProgress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Activity, Pill, AlertTriangle, ArrowRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -14,23 +21,35 @@ import { cn } from '@/lib/utils';
 export default function PerfilPaciente() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const patient = mockPatients.find(p => p.id === id);
+  const { data: patient, isLoading: loadingPatient } = usePatient(id);
+  const { data: journeysData } = useJourneys(id);
+  const { data: appointmentsData } = useAppointments();
+  const { data: examsData } = useExams();
+  const { data: tasksData } = useTasks();
+  const { data: alertsData } = useAlerts();
+  const { data: paramRecords } = useParameterRecords();
+  const { data: careLinesData } = useCareLines();
+
+  if (loadingPatient) return <div className="space-y-4 p-4"><Skeleton className="h-20 w-full" /><Skeleton className="h-40 w-full" /></div>;
   if (!patient) return <div className="p-8 text-muted-foreground">Paciente não encontrado</div>;
 
-  const journeys = mockJourneys.filter(j => j.patientId === id);
-  const records = mockParameterRecords.filter(r => r.patientId === id);
-  const appointments = mockAppointments.filter(a => a.patientId === id);
-  const tasks = mockTasks.filter(t => t.patientId === id);
-  const alerts = mockAlerts.filter(a => a.patientId === id && !a.lido);
-  const activeLines = careLines.filter(l => patient.linhasAtivas.includes(l.id));
+  const goals = parseGoals(patient.goals);
+  const risk = riskLevel(patient);
+  const careLines = (careLinesData || []).map(mapCareLine);
+  const journeys = (journeysData || []);
+  const appointments = (appointmentsData || []).filter(a => a.patient_id === id);
+  const exams = (examsData || []).filter(e => e.patient_id === id);
+  const alerts = (alertsData || []).filter(a => a.patient_id === id && !a.lido);
+  const records = (paramRecords || []).filter(r => r.patient_id === id);
+  const activeLines = careLines.filter(l => (patient.linhas_ativas || []).includes(l.id));
 
   const timelineEvents = [
     ...appointments.map(a => ({ date: a.data, type: 'consulta' as const, label: `${a.tipo} — ${a.profissional}`, status: a.status })),
-    ...mockExams.filter(e => e.patientId === id).map(e => ({ date: e.dataSolicitacao, type: 'exame' as const, label: e.tipo, status: e.status })),
+    ...exams.map(e => ({ date: e.data_solicitacao, type: 'exame' as const, label: e.tipo, status: e.status })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
-  const hba1cData = records.filter(r => r.field === 'hba1c').map(r => ({ date: r.date.substring(5), value: r.value }));
-  const hba1cGoal = patient.goals.find(g => g.field === 'hba1c');
+  const hba1cData = records.filter(r => r.field === 'hba1c').map(r => ({ date: r.date.substring(5), value: Number(r.value) }));
+  const hba1cGoal = goals.find(g => g.field === 'hba1c');
 
   const initials = patient.nome.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
@@ -48,9 +67,9 @@ export default function PerfilPaciente() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-foreground">{patient.nome}</h1>
-            <RiskSemaphore level={patient.riskLevel} score={patient.scoreRisco} />
+            <RiskSemaphore level={risk} score={patient.score_risco || 0} />
           </div>
-          <p className="text-xs text-muted-foreground">{patient.sexo === 'F' ? 'Feminino' : 'Masculino'} · {patient.dataNascimento} · {patient.convenio} · {patient.unidade}</p>
+          <p className="text-xs text-muted-foreground">{patient.sexo === 'F' ? 'Feminino' : 'Masculino'} · {patient.data_nascimento} · {patient.convenio} · {patient.unidade}</p>
           <div className="flex gap-1 mt-2">
             {activeLines.map(l => (
               <span key={l.id} className="status-chip text-[10px]" style={{ background: l.color + '22', color: l.color }}>{l.name}</span>
@@ -64,11 +83,10 @@ export default function PerfilPaciente() {
         <p className="section-label">Situação por Linha de Cuidado</p>
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {journeys.map(j => {
-            const line = careLines.find(l => l.id === j.careLineId);
-            const currentStep = j.steps[j.currentStepIndex];
-            const lineGoals = patient.goals.filter(g => g.careLineId === j.careLineId);
+            const clRow = (careLinesData || []).find(c => c.id === j.care_line_id);
+            const line = clRow ? mapCareLine(clRow) : null;
+            const lineGoals = goals.filter(g => g.careLineId === (clRow?.slug || j.care_line_id));
             const outGoals = lineGoals.filter(g => isOutOfTarget(g));
-            const topPendencia = currentStep?.pendencias[0];
 
             return (
               <Card key={j.id} className="border-l-2 cursor-pointer hover:bg-muted/30 transition-colors" style={{ borderLeftColor: line?.color }} onClick={() => navigate('/jornadas')}>
@@ -77,7 +95,6 @@ export default function PerfilPaciente() {
                     <p className="text-xs font-semibold" style={{ color: line?.color }}>{line?.name}</p>
                     <StatusChip status={j.status === 'ativa' ? 'em_andamento' : 'concluido'} className="text-[9px]" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Etapa: {currentStep?.name}</p>
                   {outGoals.length > 0 && (
                     <div className="space-y-0.5">
                       {outGoals.map(g => (
@@ -87,7 +104,6 @@ export default function PerfilPaciente() {
                       ))}
                     </div>
                   )}
-                  {topPendencia && <p className="text-[10px] text-[hsl(var(--status-pending))]">⚠ {topPendencia}</p>}
                   <div className="flex items-center gap-1 text-[10px] text-primary">
                     Ver jornada <ArrowRight className="h-3 w-3" />
                   </div>
@@ -106,19 +122,19 @@ export default function PerfilPaciente() {
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="section-label">Diagnósticos Ativos</p>
-              <div className="space-y-1">{patient.diagnosticosAtivos.map((d, i) => <p key={i} className="text-sm text-foreground">{d}</p>)}</div>
+              <div className="space-y-1">{(patient.diagnosticos_ativos || []).map((d, i) => <p key={i} className="text-sm text-foreground">{d}</p>)}</div>
             </div>
             <div>
               <p className="section-label">Alergias</p>
-              <div className="space-y-1">{patient.alergias.length ? patient.alergias.map((a, i) => <p key={i} className="text-sm text-[hsl(var(--destructive))]">{a}</p>) : <p className="text-sm text-muted-foreground">NKDA</p>}</div>
+              <div className="space-y-1">{(patient.alergias || []).length ? (patient.alergias || []).map((a, i) => <p key={i} className="text-sm text-[hsl(var(--destructive))]">{a}</p>) : <p className="text-sm text-muted-foreground">NKDA</p>}</div>
             </div>
             <div>
               <p className="section-label">Fatores de Risco</p>
-              <div className="space-y-1">{patient.fatoresRisco.map((f, i) => <p key={i} className="text-sm text-foreground">{f}</p>)}</div>
+              <div className="space-y-1">{(patient.fatores_risco || []).map((f, i) => <p key={i} className="text-sm text-foreground">{f}</p>)}</div>
             </div>
             <div>
               <p className="section-label">Histórico Familiar</p>
-              <div className="space-y-1">{patient.historicoFamiliar.map((h, i) => <p key={i} className="text-sm text-foreground">{h}</p>)}</div>
+              <div className="space-y-1">{(patient.historico_familiar || []).map((h, i) => <p key={i} className="text-sm text-foreground">{h}</p>)}</div>
             </div>
           </CardContent>
         </Card>
@@ -129,7 +145,7 @@ export default function PerfilPaciente() {
               <CardTitle className="text-sm flex items-center gap-2"><Pill className="h-4 w-4 text-primary" /> Medicações</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {patient.medicacoes.map((m, i) => <p key={i} className="text-xs text-foreground">{m}</p>)}
+              {(patient.medicacoes || []).map((m, i) => <p key={i} className="text-xs text-foreground">{m}</p>)}
             </CardContent>
           </Card>
 
@@ -138,7 +154,7 @@ export default function PerfilPaciente() {
               <CardTitle className="text-sm">Metas Clínicas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {patient.goals.map(g => <GoalProgress key={g.field} goal={g} compact />)}
+              {goals.map(g => <GoalProgress key={g.field} goal={g} compact />)}
             </CardContent>
           </Card>
         </div>

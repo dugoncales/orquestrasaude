@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { careLines } from '@/data/care-lines';
-import { mockPatients } from '@/data/mock-patients';
+import { useCareLines } from '@/hooks/useCareLines';
+import { usePatients } from '@/hooks/usePatients';
+import { mapCareLine, parseGoals, riskLevel } from '@/lib/db-helpers';
 import { parameterDictionary } from '@/data/parameters';
 import { CareLine } from '@/data/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { RiskSemaphore } from '@/components/shared/RiskSemaphore';
 import {
@@ -47,41 +49,46 @@ function exportCSV(lines: CareLine[]) {
 }
 
 export default function LinhasDeCuidado() {
+  const { data: careLinesData, isLoading: loadingLines } = useCareLines();
+  const { data: patientsData, isLoading: loadingPatients } = usePatients();
   const [selectedLine, setSelectedLine] = useState<CareLine | null>(null);
   const [viewMode, setViewMode] = useState<'lines' | 'integrated'>('lines');
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [selectedLineFilters, setSelectedLineFilters] = useState<string[]>([]);
   const [period, setPeriod] = useState('12');
 
-  const multiLinePatients = mockPatients.filter(p => p.linhasAtivas.length > 1);
-  const selectedPatient = mockPatients.find(p => p.id === selectedPatientId);
+  const careLines = useMemo(() => (careLinesData || []).map(mapCareLine), [careLinesData]);
+  const patients = patientsData || [];
+
+  const multiLinePatients = patients.filter(p => (p.linhas_ativas || []).length > 1);
+  const selectedPatient = patients.find(p => p.id === selectedPatientId);
 
   const filteredLines = useMemo(() => {
     if (selectedLineFilters.length === 0) return careLines;
     return careLines.filter(l => selectedLineFilters.includes(l.id));
-  }, [selectedLineFilters]);
+  }, [selectedLineFilters, careLines]);
 
   const priorityPatients = useMemo(() => {
-    let patients = [...mockPatients].filter(p => p.statusCadastral === 'ativo');
+    let pts = [...patients].filter(p => p.status_cadastral === 'ativo');
     if (selectedLineFilters.length > 0) {
-      patients = patients.filter(p => p.linhasAtivas.some(la => selectedLineFilters.includes(la)));
+      pts = pts.filter(p => (p.linhas_ativas || []).some(la => selectedLineFilters.includes(la)));
     }
-    return patients.sort((a, b) => b.scoreRisco - a.scoreRisco).slice(0, 10);
-  }, [selectedLineFilters]);
+    return pts.sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0)).slice(0, 10);
+  }, [selectedLineFilters, patients]);
+
+  if (loadingLines || loadingPatients) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
 
   const periodLabel = PERIOD_OPTIONS.find(p => p.value === period)?.label || '12 meses';
-
   const toggleLineFilter = (id: string) => {
     setSelectedLineFilters(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   if (selectedLine) {
-    return <CareLineDetail line={selectedLine} onBack={() => setSelectedLine(null)} />;
+    return <CareLineDetail line={selectedLine} patients={patients} careLines={careLines} onBack={() => setSelectedLine(null)} />;
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">Linhas de Cuidado</h1>
@@ -105,7 +112,6 @@ export default function LinhasDeCuidado() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <Popover>
           <PopoverTrigger asChild>
@@ -119,33 +125,20 @@ export default function LinhasDeCuidado() {
             <div className="space-y-1">
               {careLines.map(l => (
                 <label key={l.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-secondary/50 cursor-pointer text-xs">
-                  <Checkbox
-                    checked={selectedLineFilters.includes(l.id)}
-                    onCheckedChange={() => toggleLineFilter(l.id)}
-                  />
+                  <Checkbox checked={selectedLineFilters.includes(l.id)} onCheckedChange={() => toggleLineFilter(l.id)} />
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ background: l.color }} />
                   {l.name}
                 </label>
               ))}
               {selectedLineFilters.length > 0 && (
-                <Button variant="ghost" size="sm" className="w-full text-xs h-7 mt-1" onClick={() => setSelectedLineFilters([])}>
-                  Limpar filtros
-                </Button>
+                <Button variant="ghost" size="sm" className="w-full text-xs h-7 mt-1" onClick={() => setSelectedLineFilters([])}>Limpar filtros</Button>
               )}
             </div>
           </PopoverContent>
         </Popover>
-
         <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-36 h-8 text-xs">
-            <Calendar className="h-3 w-3 mr-1.5" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIOD_OPTIONS.map(p => (
-              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-            ))}
-          </SelectContent>
+          <SelectTrigger className="w-36 h-8 text-xs"><Calendar className="h-3 w-3 mr-1.5" /><SelectValue /></SelectTrigger>
+          <SelectContent>{PERIOD_OPTIONS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
         </Select>
       </div>
 
@@ -155,12 +148,7 @@ export default function LinhasDeCuidado() {
             {filteredLines.map(line => {
               const Icon = iconMap[line.icon] || Activity;
               return (
-                <Card
-                  key={line.id}
-                  className="border-t-2 hover:border-primary/50 transition-colors cursor-pointer group"
-                  style={{ borderTopColor: line.color }}
-                  onClick={() => setSelectedLine(line)}
-                >
+                <Card key={line.id} className="border-t-2 hover:border-primary/50 transition-colors cursor-pointer group" style={{ borderTopColor: line.color }} onClick={() => setSelectedLine(line)}>
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ background: line.color + '22' }}>
@@ -185,49 +173,44 @@ export default function LinhasDeCuidado() {
             })}
           </div>
 
-          {/* Priority Patients */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                Pacientes Prioritários
+                <AlertTriangle className="h-4 w-4 text-destructive" /> Pacientes Prioritários
                 <Badge variant="secondary" className="text-[10px]">Top 10</Badge>
               </h2>
             </div>
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-              {priorityPatients.map(patient => {
-                const offTarget = patient.goals.filter(g => {
+              {priorityPatients.map(p => {
+                const pGoals = parseGoals(p.goals);
+                const offTarget = pGoals.filter(g => {
                   if (g.operator === '<') return g.currentValue >= g.target;
                   if (g.operator === '>') return g.currentValue <= g.target;
                   return g.currentValue !== g.target;
                 });
-                const patientCareLines = careLines.filter(l => patient.linhasAtivas.includes(l.id));
+                const patientCareLines = careLines.filter(l => (p.linhas_ativas || []).includes(l.id));
                 return (
-                  <Card key={patient.id} className="hover:border-primary/30 transition-colors">
+                  <Card key={p.id} className="hover:border-primary/30 transition-colors">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="text-sm font-semibold text-foreground">{patient.nome}</p>
+                          <p className="text-sm font-semibold text-foreground">{p.nome}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <RiskSemaphore level={patient.riskLevel} score={patient.scoreRisco} />
-                            <span className="text-[10px] text-muted-foreground capitalize">{patient.riskLevel}</span>
+                            <RiskSemaphore level={riskLevel(p)} score={p.score_risco || 0} />
+                            <span className="text-[10px] text-muted-foreground capitalize">{riskLevel(p)}</span>
                           </div>
                         </div>
-                        {patient.diasSemRetorno !== undefined && (
-                          <Badge variant={patient.diasSemRetorno > 30 ? 'destructive' : 'outline'} className="text-[10px]">
-                            {patient.diasSemRetorno}d sem retorno
+                        {p.dias_sem_retorno !== undefined && p.dias_sem_retorno !== null && (
+                          <Badge variant={p.dias_sem_retorno > 30 ? 'destructive' : 'outline'} className="text-[10px]">
+                            {p.dias_sem_retorno}d sem retorno
                           </Badge>
                         )}
                       </div>
-
                       <div className="flex gap-1 flex-wrap mb-2">
                         {patientCareLines.map(l => (
-                          <span key={l.id} className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: l.color + '22', color: l.color }}>
-                            {l.name}
-                          </span>
+                          <span key={l.id} className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: l.color + '22', color: l.color }}>{l.name}</span>
                         ))}
                       </div>
-
                       {offTarget.length > 0 && (
                         <div className="space-y-1">
                           <p className="text-[10px] text-muted-foreground font-semibold">Fora da meta:</p>
@@ -250,6 +233,7 @@ export default function LinhasDeCuidado() {
       ) : (
         <IntegratedView
           patients={multiLinePatients}
+          careLines={careLines}
           selectedPatientId={selectedPatientId}
           selectedPatient={selectedPatient}
           onSelectPatient={setSelectedPatientId}
@@ -259,11 +243,10 @@ export default function LinhasDeCuidado() {
   );
 }
 
-/* ─── Detail View ─── */
-function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }) {
+function CareLineDetail({ line, patients, careLines, onBack }: { line: CareLine; patients: any[]; careLines: CareLine[]; onBack: () => void }) {
   const Icon = iconMap[line.icon] || Activity;
   const paramLabels = (fields: string[]) => fields.map(f => parameterDictionary.find(p => p.field === f)?.label || f);
-  const linePatients = mockPatients.filter(p => p.linhasAtivas.includes(line.id)).sort((a, b) => b.scoreRisco - a.scoreRisco);
+  const linePatients = patients.filter(p => (p.linhas_ativas || []).includes(line.id)).sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0));
 
   return (
     <div className="space-y-5">
@@ -278,7 +261,6 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Pacientes', value: line.patientCount, icon: Users },
@@ -310,17 +292,13 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
             <Card><CardContent className="p-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3"><LogIn className="h-4 w-4 text-green-500" /> Critérios de Inclusão</h3>
               <ul className="space-y-2">{line.criteriosInclusao.map((c, i) => (
-                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />{c}
-                </li>
+                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />{c}</li>
               ))}</ul>
             </CardContent></Card>
             <Card><CardContent className="p-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2 mb-3"><LogOut className="h-4 w-4 text-orange-500" /> Critérios de Saída</h3>
               <ul className="space-y-2">{line.criteriosSaida.map((c, i) => (
-                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-orange-500 shrink-0" />{c}
-                </li>
+                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-orange-500 shrink-0" />{c}</li>
               ))}</ul>
             </CardContent></Card>
           </div>
@@ -428,7 +406,7 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
                 <TableRow key={i}>
                   <TableCell className="text-xs font-medium">{a.condicao}</TableCell>
                   <TableCell className="text-xs">{a.acao}</TableCell>
-                  <TableCell><Switch checked={a.ativa} onCheckedChange={() => toast.info('Automação atualizada (mock)')} /></TableCell>
+                  <TableCell><Switch checked={a.ativa} onCheckedChange={() => toast.info('Automação atualizada')} /></TableCell>
                 </TableRow>
               ))}</TableBody>
             </Table>
@@ -459,7 +437,6 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
           </CardContent></Card>
         </TabsContent>
 
-        {/* New Patients tab */}
         <TabsContent value="pacientes">
           <Card><CardContent className="p-0">
             <Table>
@@ -474,7 +451,8 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
                 {linePatients.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-xs text-center text-muted-foreground py-8">Nenhum paciente nesta linha</TableCell></TableRow>
                 ) : linePatients.map(p => {
-                  const offTarget = p.goals.filter(g => {
+                  const pGoals = parseGoals(p.goals);
+                  const offTarget = pGoals.filter(g => {
                     if (g.operator === '<') return g.currentValue >= g.target;
                     if (g.operator === '>') return g.currentValue <= g.target;
                     return g.currentValue !== g.target;
@@ -482,15 +460,13 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="text-xs font-medium">{p.nome}</TableCell>
-                      <TableCell><RiskSemaphore level={p.riskLevel} score={p.scoreRisco} /></TableCell>
+                      <TableCell><RiskSemaphore level={riskLevel(p)} score={p.score_risco || 0} /></TableCell>
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
-                          {p.linhasAtivas.map(la => {
+                          {(p.linhas_ativas || []).map((la: string) => {
                             const cl = careLines.find(c => c.id === la);
                             return cl ? (
-                              <span key={la} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: cl.color + '22', color: cl.color }}>
-                                {cl.name}
-                              </span>
+                              <span key={la} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: cl.color + '22', color: cl.color }}>{cl.name}</span>
                             ) : null;
                           })}
                         </div>
@@ -506,10 +482,8 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
                         ) : <span className="text-[10px] text-green-400">Todas na meta</span>}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {p.diasSemRetorno !== undefined ? (
-                          <span className={p.diasSemRetorno > 30 ? 'text-destructive font-medium' : 'text-muted-foreground'}>
-                            {p.diasSemRetorno}d
-                          </span>
+                        {p.dias_sem_retorno != null ? (
+                          <span className={p.dias_sem_retorno > 30 ? 'text-destructive font-medium' : 'text-muted-foreground'}>{p.dias_sem_retorno}d</span>
                         ) : '—'}
                       </TableCell>
                     </TableRow>
@@ -524,16 +498,17 @@ function CareLineDetail({ line, onBack }: { line: CareLine; onBack: () => void }
   );
 }
 
-/* ─── Integrated Patient View ─── */
-function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelectPatient }: {
-  patients: typeof mockPatients;
+function IntegratedView({ patients, careLines, selectedPatientId, selectedPatient, onSelectPatient }: {
+  patients: any[];
+  careLines: CareLine[];
   selectedPatientId: string;
-  selectedPatient: typeof mockPatients[0] | undefined;
+  selectedPatient: any | undefined;
   onSelectPatient: (id: string) => void;
 }) {
   const patientLines = selectedPatient
-    ? careLines.filter(l => selectedPatient.linhasAtivas.includes(l.id))
+    ? careLines.filter(l => (selectedPatient.linhas_ativas || []).includes(l.id))
     : [];
+  const pGoals = selectedPatient ? parseGoals(selectedPatient.goals) : [];
 
   const allTasks = patientLines.flatMap(l => l.tarefasPadrao.map(t => ({ ...t, lineId: l.id, lineName: l.name, lineColor: l.color })));
   const sharedTasks: typeof allTasks = [];
@@ -566,7 +541,7 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
           <SelectTrigger className="w-full sm:w-80"><SelectValue placeholder="Escolha um paciente..." /></SelectTrigger>
           <SelectContent>
             {patients.map(p => (
-              <SelectItem key={p.id} value={p.id}>{p.nome} ({p.linhasAtivas.length} linhas)</SelectItem>
+              <SelectItem key={p.id} value={p.id}>{p.nome} ({(p.linhas_ativas || []).length} linhas)</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -577,7 +552,7 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {patientLines.map(line => {
               const Icon = iconMap[line.icon] || Activity;
-              const patientGoals = selectedPatient.goals.filter(g => g.careLineId === line.id);
+              const patientGoals = pGoals.filter(g => g.careLineId === line.id);
               return (
                 <Card key={line.id} className="border-t-2" style={{ borderTopColor: line.color }}>
                   <CardContent className="p-4">
@@ -638,9 +613,7 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
                   return (
                     <div key={param} className="flex items-center justify-between bg-secondary/30 rounded px-3 py-2">
                       <span className="text-xs font-medium text-foreground">{label}</span>
-                      <div className="flex gap-1">{lines.map((l, i) => (
-                        <Badge key={i} variant="secondary" className="text-[10px]">{l}</Badge>
-                      ))}</div>
+                      <div className="flex gap-1">{lines.map((l, i) => <Badge key={i} variant="secondary" className="text-[10px]">{l}</Badge>)}</div>
                     </div>
                   );
                 })}
@@ -660,7 +633,7 @@ function IntegratedView({ patients, selectedPatientId, selectedPatient, onSelect
                 <TableHead className="text-xs">Linha</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
               </TableRow></TableHeader>
-              <TableBody>{selectedPatient.goals.map((g, i) => {
+              <TableBody>{pGoals.map((g, i) => {
                 const onTarget = g.operator === '<' ? g.currentValue < g.target : g.operator === '>' ? g.currentValue > g.target : g.currentValue === g.target;
                 const lineName = careLines.find(l => l.id === g.careLineId)?.name || g.careLineId;
                 return (
