@@ -8,20 +8,20 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Users, Shield, Settings, FileText, Plus, Check, X, GripVertical,
   GitBranch, Route, FlaskConical, ClipboardList, Zap, Activity,
   Heart, Scale, Droplets, Brain, Wind
 } from 'lucide-react';
 import { StatusChip } from '@/components/shared/StatusChip';
-import { careLines } from '@/data/care-lines';
+import { useCareLines } from '@/hooks/useCareLines';
+import { useAutomationRules } from '@/hooks/useAutomationRules';
+import { mapCareLine } from '@/lib/db-helpers';
 import { parameterDictionary } from '@/data/parameters';
-import { mockAutomationRules, mockPermissionsMatrix } from '@/data/mock-data';
 import { toast } from 'sonner';
 
-const iconMap: Record<string, any> = {
-  Activity, Heart, Scale, Droplets, Brain, Wind,
-};
+const iconMap: Record<string, any> = { Activity, Heart, Scale, Droplets, Brain, Wind };
 
 const mockUsers = [
   { name: 'Dra. Ana Beatriz', email: 'ana@clinica.com', role: 'professional', status: 'ativo', lastAccess: '2025-04-14' },
@@ -39,6 +39,13 @@ const mockAudit = [
   { date: '2025-04-12 11:30', user: 'Admin Sistema', action: 'Alterou permissões do perfil Gestor' },
   { date: '2025-04-12 09:00', user: 'Dra. Ana Beatriz', action: 'Incluiu paciente Carlos Eduardo na linha de Obesidade' },
 ];
+
+const mockPermissionsMatrix: Record<string, Record<string, boolean>> = {
+  admin: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: true, IA: true, Studio: true, Editor: true },
+  manager: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: true, IA: true, Studio: false, Editor: false },
+  professional: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: false, IA: false, Studio: false, Editor: false },
+  patient: { Dashboard: true, Pacientes: false, Jornadas: false, 'Linhas de Cuidado': false, Consultas: false, Exames: false, Questionários: true, BI: false, IA: false, Studio: false, Editor: false },
+};
 
 const defaultSteps = [
   { name: 'Elegibilidade', sla: 2, responsavel: 'Enfermeiro' },
@@ -59,10 +66,7 @@ const roleBadgeColor: Record<string, string> = {
   professional: 'bg-accent/40 text-accent-foreground border-accent/30',
   patient: 'bg-muted text-muted-foreground border-border',
 };
-
-const roleLabel: Record<string, string> = {
-  admin: 'Admin', manager: 'Gestor', professional: 'Profissional', patient: 'Paciente',
-};
+const roleLabel: Record<string, string> = { admin: 'Admin', manager: 'Gestor', professional: 'Profissional', patient: 'Paciente' };
 
 const groupColors: Record<string, string> = {
   laboratorial: 'bg-primary/20 text-primary',
@@ -79,11 +83,25 @@ const modules = ['Dashboard', 'Pacientes', 'Jornadas', 'Linhas de Cuidado', 'Con
 const roles = ['admin', 'manager', 'professional', 'patient'];
 
 export default function StudioAdmin() {
+  const { data: careLinesData, isLoading: loadingCL } = useCareLines();
+  const { data: automationRulesData, isLoading: loadingAR } = useAutomationRules();
   const [paramGroupFilter, setParamGroupFilter] = useState<string>('todos');
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
 
+  const careLines = (careLinesData || []).map(mapCareLine);
+  const automationRules = (automationRulesData || []).map(r => ({
+    id: r.id,
+    name: r.name,
+    condition: r.condition,
+    actions: r.actions || [],
+    active: r.active ?? true,
+    careLineId: r.care_line_id,
+  }));
+
   const paramGroups = ['todos', ...Array.from(new Set(parameterDictionary.map(p => p.group)))];
   const filteredParams = paramGroupFilter === 'todos' ? parameterDictionary : parameterDictionary.filter(p => p.group === paramGroupFilter);
+
+  if (loadingCL || loadingAR) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
 
   return (
     <div className="space-y-6">
@@ -95,7 +113,7 @@ export default function StudioAdmin() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPICard title="Usuários Ativos" value={mockUsers.length} icon={Users} accentColor="primary" />
         <KPICard title="Linhas de Cuidado" value={careLines.length} icon={GitBranch} accentColor="info" />
-        <KPICard title="Regras de Automação" value={mockAutomationRules.length} icon={Zap} accentColor="warning" />
+        <KPICard title="Regras de Automação" value={automationRules.length} icon={Zap} accentColor="warning" />
         <KPICard title="Parâmetros Clínicos" value={parameterDictionary.length} icon={FlaskConical} accentColor="success" />
       </div>
 
@@ -120,15 +138,13 @@ export default function StudioAdmin() {
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <Table className="table-premium">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead className="hidden sm:table-cell">Email</TableHead>
-                  <TableHead>Perfil</TableHead>
-                  <TableHead className="hidden md:table-cell">Último Acesso</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
+                <TableHead>Perfil</TableHead>
+                <TableHead className="hidden md:table-cell">Último Acesso</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {mockUsers.map((u, i) => (
                   <TableRow key={i}>
@@ -156,16 +172,14 @@ export default function StudioAdmin() {
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-4">
-          <p className="text-xs text-muted-foreground mb-3">Matriz de acesso por perfil — controle quais módulos cada role pode acessar.</p>
+          <p className="text-xs text-muted-foreground mb-3">Matriz de acesso por perfil</p>
           <ScrollArea className="w-full">
             <div className="rounded-xl border border-border overflow-hidden min-w-[600px]">
               <Table className="table-premium">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-28">Módulo</TableHead>
-                    {roles.map(r => <TableHead key={r} className="text-center text-xs">{roleLabel[r]}</TableHead>)}
-                  </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow>
+                  <TableHead className="w-28">Módulo</TableHead>
+                  {roles.map(r => <TableHead key={r} className="text-center text-xs">{roleLabel[r]}</TableHead>)}
+                </TableRow></TableHeader>
                 <TableBody>
                   {modules.map(mod => (
                     <TableRow key={mod}>
@@ -174,8 +188,7 @@ export default function StudioAdmin() {
                         <TableCell key={r} className="text-center">
                           {mockPermissionsMatrix[r]?.[mod]
                             ? <Check className="h-4 w-4 text-primary mx-auto" />
-                            : <X className="h-4 w-4 text-muted-foreground/40 mx-auto" />
-                          }
+                            : <X className="h-4 w-4 text-muted-foreground/40 mx-auto" />}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -226,15 +239,11 @@ export default function StudioAdmin() {
                         </div>
                         <div>
                           <p className="section-label">PROMs</p>
-                          <div className="flex flex-wrap gap-1">
-                            {line.proms.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split('_').join(' ')}</Badge>)}
-                          </div>
+                          <div className="flex flex-wrap gap-1">{line.proms.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split('_').join(' ')}</Badge>)}</div>
                         </div>
                         <div>
                           <p className="section-label">PREMs</p>
-                          <div className="flex flex-wrap gap-1">
-                            {line.prems.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split('_').join(' ')}</Badge>)}
-                          </div>
+                          <div className="flex flex-wrap gap-1">{line.prems.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p.split('_').join(' ')}</Badge>)}</div>
                         </div>
                       </div>
                     )}
@@ -251,26 +260,20 @@ export default function StudioAdmin() {
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <Table className="table-premium">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead className="w-8">#</TableHead>
-                  <TableHead>Etapa</TableHead>
-                  <TableHead>SLA (dias)</TableHead>
-                  <TableHead className="hidden sm:table-cell">Responsável Padrão</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow>
+                <TableHead className="w-8"></TableHead>
+                <TableHead className="w-8">#</TableHead>
+                <TableHead>Etapa</TableHead>
+                <TableHead>SLA (dias)</TableHead>
+                <TableHead className="hidden sm:table-cell">Responsável Padrão</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {defaultSteps.map((step, i) => (
                   <TableRow key={i}>
                     <TableCell><GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab" /></TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">{i + 1}</TableCell>
                     <TableCell className="text-sm font-medium">{step.name}</TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
-                        {step.sla}d
-                      </span>
-                    </TableCell>
+                    <TableCell><span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">{step.sla}d</span></TableCell>
                     <TableCell className="text-sm hidden sm:table-cell text-muted-foreground">{step.responsavel}</TableCell>
                   </TableRow>
                 ))}
@@ -282,38 +285,29 @@ export default function StudioAdmin() {
         <TabsContent value="params" className="mt-4">
           <div className="flex flex-wrap gap-1.5 mb-3">
             {paramGroups.map(g => (
-              <button
-                key={g}
-                onClick={() => setParamGroupFilter(g)}
+              <button key={g} onClick={() => setParamGroupFilter(g)}
                 className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors border ${
-                  paramGroupFilter === g
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-muted text-muted-foreground border-border hover:border-primary/30'
-                }`}
-              >
+                  paramGroupFilter === g ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/30'
+                }`}>
                 {g === 'todos' ? 'Todos' : g.split('_').join(' ')}
               </button>
             ))}
           </div>
           <div className="rounded-xl border border-border overflow-hidden">
             <Table className="table-premium">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Campo</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="hidden sm:table-cell">Unidade</TableHead>
-                  <TableHead>Grupo</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow>
+                <TableHead>Campo</TableHead>
+                <TableHead>Label</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="hidden sm:table-cell">Unidade</TableHead>
+                <TableHead>Grupo</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {filteredParams.map(p => (
                   <TableRow key={p.field}>
                     <TableCell className="text-xs font-mono text-muted-foreground">{p.field}</TableCell>
                     <TableCell className="text-sm font-medium">{p.label}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-[10px]">{p.type}</Badge>
-                    </TableCell>
+                    <TableCell><Badge variant="secondary" className="text-[10px]">{p.type}</Badge></TableCell>
                     <TableCell className="text-sm hidden sm:table-cell text-muted-foreground">{p.unit || '—'}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${groupColors[p.group] || 'bg-muted text-muted-foreground'}`}>
@@ -380,7 +374,7 @@ export default function StudioAdmin() {
             <Button size="sm" className="gap-1" onClick={() => toast.success('Nova regra de automação criada')}><Plus className="h-4 w-4" /> Nova Regra</Button>
           </div>
           <div className="space-y-2">
-            {mockAutomationRules.map(rule => (
+            {automationRules.map(rule => (
               <Card key={rule.id} className={`transition-colors ${rule.active ? '' : 'opacity-50'}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -394,9 +388,7 @@ export default function StudioAdmin() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground/80">Se:</span> {rule.condition}
-                      </p>
+                      <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground/80">Se:</span> {rule.condition}</p>
                       <div className="flex flex-wrap gap-1">
                         {rule.actions.map((a, i) => (
                           <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-accent/50 text-accent-foreground">→ {a}</span>
@@ -414,13 +406,11 @@ export default function StudioAdmin() {
         <TabsContent value="audit" className="mt-4">
           <div className="rounded-xl border border-border overflow-hidden">
             <Table className="table-premium">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data/Hora</TableHead>
-                  <TableHead>Usuário</TableHead>
-                  <TableHead>Ação</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow>
+                <TableHead>Data/Hora</TableHead>
+                <TableHead>Usuário</TableHead>
+                <TableHead>Ação</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
                 {mockAudit.map((a, i) => (
                   <TableRow key={i}>

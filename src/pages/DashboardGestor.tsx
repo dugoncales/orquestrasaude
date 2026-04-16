@@ -1,25 +1,32 @@
+import { useMemo } from 'react';
 import { KPICard } from '@/components/shared/KPICard';
 import { JourneyFunnel } from '@/components/shared/JourneyFunnel';
 import { RiskSemaphore } from '@/components/shared/RiskSemaphore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Users, GitBranch, Target, AlertTriangle, BarChart3, TrendingUp,
   Clock, UserX, Sparkles, Activity, CheckCircle2, XCircle
 } from 'lucide-react';
-import { careLines } from '@/data/care-lines';
-import { mockPatients } from '@/data/mock-patients';
-import { mockAppointments, mockTasks, mockJourneys, mockAlerts, mockAIInsights } from '@/data/mock-data';
+import { usePatients } from '@/hooks/usePatients';
+import { useAppointments } from '@/hooks/useAppointments';
+import { useTasks } from '@/hooks/useTasks';
+import { useJourneys, useAllJourneySteps } from '@/hooks/useJourneys';
+import { useAlerts } from '@/hooks/useAlerts';
+import { useCareLines } from '@/hooks/useCareLines';
+import { parseGoals, riskLevel, mapCareLine } from '@/lib/db-helpers';
 import { isOutOfTarget } from '@/components/shared/GoalProgress';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
-const totalPatients = careLines.reduce((s, l) => s + l.patientCount, 0);
-const patientsOutOfGoal = mockPatients.filter(p => p.goals.some(g => isOutOfTarget(g))).length;
-const avgAdherence = Math.round(careLines.reduce((s, l) => s + l.avgAdherence, 0) / careLines.length);
-const faltosos30d = mockAppointments.filter(a => a.status === 'faltou').length;
-const criticalAlerts = mockAlerts.filter(a => a.severidade === 'critical' && !a.lido).length;
+const mockAIInsights = [
+  { id: '1', severidade: 'critical', mensagem: '3 pacientes com HbA1c > 9% sem consulta nos últimos 30 dias. Recomenda-se agendamento prioritário.' },
+  { id: '2', severidade: 'warning', mensagem: 'Tempo médio na etapa "Plano Terapêutico" está 40% acima do SLA. Avaliar gargalos operacionais.' },
+  { id: '3', severidade: 'warning', mensagem: '68% dos pacientes com depressão não completaram PHQ-9 no último trimestre.' },
+  { id: '4', severidade: 'critical', mensagem: 'Roberto Almeida Lima: TFG em queda progressiva (38 mL/min). Risco de evolução para DRC G4.' },
+];
 
 const stageTimingData = [
   { name: 'Elegibilidade', media: 2, sla: 3 },
@@ -32,24 +39,6 @@ const stageTimingData = [
   { name: 'Reavaliação', media: 9, sla: 10 },
 ];
 
-const avgStageTime = Math.round(stageTimingData.reduce((s, d) => s + d.media, 0) / stageTimingData.length);
-
-const professionals = ['Dra. Ana Beatriz', 'Dr. Ricardo Mendes', 'Enf. Carla', 'Nut. Juliana', 'Psic. Mariana', 'Dr. Marcos Vieira', 'Dra. Camila Lopes'];
-const produtividade = professionals.map(prof => {
-  const pacientesAtivos = mockJourneys.filter(j => j.steps.some(s => s.responsavel === prof && s.status === 'em_andamento')).length;
-  const consultasRealizadas = mockAppointments.filter(a => a.profissional === prof && a.status === 'realizada').length;
-  const tarefasConcluidas = mockTasks.filter(t => t.responsavel === prof && t.status === 'em_andamento').length;
-  const tarefasPendentes = mockTasks.filter(t => t.responsavel === prof && (t.status === 'pendente' || t.status === 'atrasada')).length;
-  const carga = pacientesAtivos + tarefasPendentes;
-  return { nome: prof.split(' ').slice(0, 2).join(' '), pacientesAtivos, consultasRealizadas, tarefasConcluidas, tarefasPendentes, carga };
-}).filter(p => p.pacientesAtivos > 0 || p.consultasRealizadas > 0 || p.tarefasPendentes > 0);
-
-const lineData = careLines.map(l => ({
-  name: l.name.split(' ')[0],
-  pacientes: l.patientCount,
-  adesao: l.avgAdherence,
-}));
-
 const goalMetrics = [
   { name: 'HbA1c < 7%', emMeta: 42, total: 68 },
   { name: 'PA < 130/80', emMeta: 55, total: 85 },
@@ -59,26 +48,56 @@ const goalMetrics = [
 ];
 const goalData = goalMetrics.map(g => ({ name: g.name, pct: Math.round((g.emMeta / g.total) * 100) }));
 
-const bottlenecks = stageTimingData
-  .filter(s => s.media > s.sla)
-  .sort((a, b) => (b.media - b.sla) - (a.media - a.sla))
-  .slice(0, 3);
-
-const priorityCohorts = mockPatients
-  .filter(p => p.riskLevel === 'critico' || p.riskLevel === 'alto')
-  .sort((a, b) => b.scoreRisco - a.scoreRisco)
-  .slice(0, 5);
-
-const tooltipStyle = {
-  background: 'hsl(216,20%,11%)',
-  border: '1px solid hsl(216,16%,14%)',
-  borderRadius: 8,
-  color: '#fff',
-  fontSize: 11,
-};
+const tooltipStyle = { background: 'hsl(216,20%,11%)', border: '1px solid hsl(216,16%,14%)', borderRadius: 8, color: '#fff', fontSize: 11 };
 
 export default function DashboardGestor() {
   const navigate = useNavigate();
+  const { data: patientsData, isLoading } = usePatients();
+  const { data: appointmentsData } = useAppointments();
+  const { data: tasksData } = useTasks();
+  const { data: journeysData } = useJourneys();
+  const { data: allStepsData } = useAllJourneySteps();
+  const { data: alertsData } = useAlerts();
+  const { data: careLinesData } = useCareLines();
+
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
+
+  const patients = patientsData || [];
+  const allAppointments = appointmentsData || [];
+  const allTasks = tasksData || [];
+  const journeys = journeysData || [];
+  const allSteps = allStepsData || [];
+  const allAlerts = alertsData || [];
+  const careLines = (careLinesData || []).map(mapCareLine);
+
+  const totalPatients = careLines.reduce((s, l) => s + l.patientCount, 0);
+  const patientsOutOfGoal = patients.filter(p => parseGoals(p.goals).some(g => isOutOfTarget(g))).length;
+  const avgAdherence = careLines.length ? Math.round(careLines.reduce((s, l) => s + l.avgAdherence, 0) / careLines.length) : 0;
+  const faltosos30d = allAppointments.filter(a => a.status === 'faltou').length;
+  const criticalAlerts = allAlerts.filter(a => a.severidade === 'critical' && !a.lido).length;
+  const avgStageTime = Math.round(stageTimingData.reduce((s, d) => s + d.media, 0) / stageTimingData.length);
+
+  const bottlenecks = stageTimingData.filter(s => s.media > s.sla).sort((a, b) => (b.media - b.sla) - (a.media - a.sla)).slice(0, 3);
+
+  const professionals = ['Dra. Ana Beatriz', 'Dr. Ricardo Mendes', 'Enf. Carla', 'Nut. Juliana', 'Psic. Mariana', 'Dr. Marcos Vieira', 'Dra. Camila Lopes'];
+  const produtividade = useMemo(() => {
+    return professionals.map(prof => {
+      const pacientesAtivos = allSteps.filter(s => s.responsavel === prof && s.status === 'em_andamento').length;
+      const consultasRealizadas = allAppointments.filter(a => a.profissional === prof && a.status === 'realizada').length;
+      const tarefasConcluidas = allTasks.filter(t => t.responsavel === prof && t.status === 'em_andamento').length;
+      const tarefasPendentes = allTasks.filter(t => t.responsavel === prof && (t.status === 'pendente' || t.status === 'atrasada')).length;
+      const carga = pacientesAtivos + tarefasPendentes;
+      return { nome: prof.split(' ').slice(0, 2).join(' '), pacientesAtivos, consultasRealizadas, tarefasConcluidas, tarefasPendentes, carga };
+    }).filter(p => p.pacientesAtivos > 0 || p.consultasRealizadas > 0 || p.tarefasPendentes > 0);
+  }, [allSteps, allAppointments, allTasks]);
+
+  const lineData = careLines.map(l => ({ name: l.name.split(' ')[0], pacientes: l.patientCount, adesao: l.avgAdherence }));
+
+  const priorityCohorts = [...patients]
+    .filter(p => riskLevel(p) === 'critico' || riskLevel(p) === 'alto')
+    .sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0))
+    .slice(0, 5);
+
   const today = new Date();
   const dateStr = today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -90,41 +109,31 @@ export default function DashboardGestor() {
         <div className="flex flex-wrap gap-2 mt-2">
           <Badge variant="secondary" className="text-[10px]">{totalPatients} pacientes</Badge>
           <Badge variant="destructive" className="text-[10px]">{patientsOutOfGoal} fora da meta</Badge>
-          {criticalAlerts > 0 && (
-            <Badge className="text-[10px] bg-[hsl(var(--destructive))]/20 text-[hsl(var(--destructive))] border-[hsl(var(--destructive))]/30">{criticalAlerts} alertas críticos</Badge>
-          )}
+          {criticalAlerts > 0 && <Badge className="text-[10px] bg-[hsl(var(--destructive))]/20 text-[hsl(var(--destructive))] border-[hsl(var(--destructive))]/30">{criticalAlerts} alertas críticos</Badge>}
           <Badge variant="secondary" className="text-[10px]">{faltosos30d} faltosos</Badge>
         </div>
       </div>
 
-      {/* KPIs */}
       <div>
         <p className="section-label">Indicadores Executivos</p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <KPICard title="Total Pacientes" value={totalPatients} icon={Users} trend={{ value: 8, positive: true }} accentColor="primary" />
-          <KPICard title="Fora da Meta" value={`${patientsOutOfGoal} (${Math.round(patientsOutOfGoal / mockPatients.length * 100)}%)`} icon={AlertTriangle} accentColor="destructive" />
+          <KPICard title="Fora da Meta" value={`${patientsOutOfGoal} (${patients.length ? Math.round(patientsOutOfGoal / patients.length * 100) : 0}%)`} icon={AlertTriangle} accentColor="destructive" />
           <KPICard title="Adesão Média" value={`${avgAdherence}%`} icon={Target} trend={{ value: 3, positive: true }} accentColor="success" />
           <KPICard title="Faltosos" value={faltosos30d} icon={UserX} subtitle="últimos 30 dias" accentColor="warning" />
           <KPICard title="Tempo Médio/Etapa" value={`${avgStageTime}d`} icon={Clock} accentColor="info" />
         </div>
       </div>
 
-      {/* Grid principal */}
       <div>
         <p className="section-label">Análise Operacional</p>
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          {/* Produtividade */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" /> Produtividade por Profissional
-              </CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /> Produtividade por Profissional</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {produtividade.map(p => {
                   const maxCarga = Math.max(...produtividade.map(x => x.carga), 1);
-                  const pct = Math.round((p.carga / maxCarga) * 100);
                   return (
                     <div key={p.nome} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
@@ -132,15 +141,11 @@ export default function DashboardGestor() {
                         <div className="flex gap-3 text-muted-foreground text-[10px]">
                           <span>{p.pacientesAtivos} pac.</span>
                           <span>{p.consultasRealizadas} cons.</span>
-                          <span className="flex items-center gap-0.5">
-                            <CheckCircle2 className="h-3 w-3 text-[hsl(var(--success))]" />{p.tarefasConcluidas}
-                          </span>
-                          <span className="flex items-center gap-0.5">
-                            <XCircle className="h-3 w-3 text-[hsl(var(--destructive))]" />{p.tarefasPendentes}
-                          </span>
+                          <span className="flex items-center gap-0.5"><CheckCircle2 className="h-3 w-3 text-[hsl(var(--success))]" />{p.tarefasConcluidas}</span>
+                          <span className="flex items-center gap-0.5"><XCircle className="h-3 w-3 text-[hsl(var(--destructive))]" />{p.tarefasPendentes}</span>
                         </div>
                       </div>
-                      <Progress value={pct} className="h-1.5" />
+                      <Progress value={Math.round((p.carga / maxCarga) * 100)} className="h-1.5" />
                     </div>
                   );
                 })}
@@ -148,12 +153,9 @@ export default function DashboardGestor() {
             </CardContent>
           </Card>
 
-          {/* Gargalos */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" /> Funil & Gargalos
-              </CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" /> Funil & Gargalos</CardTitle>
               <p className="text-[10px] text-muted-foreground">Vermelho = acima do SLA</p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -175,13 +177,9 @@ export default function DashboardGestor() {
             </CardContent>
           </Card>
 
-          {/* Tempo Médio */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" /> Tempo Médio por Etapa
-              </CardTitle>
-              <p className="text-[10px] text-muted-foreground">Dias médios vs SLA (linha tracejada)</p>
+              <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Tempo Médio por Etapa</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
@@ -190,27 +188,15 @@ export default function DashboardGestor() {
                   <YAxis type="category" dataKey="name" width={85} tick={{ fill: 'hsl(215,15%,50%)', fontSize: 9 }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="media" radius={[0, 4, 4, 0]} barSize={14}>
-                    {stageTimingData.map((entry, i) => (
-                      <Cell key={i} fill={entry.media > entry.sla ? 'hsl(0,72%,50%)' : 'hsl(152,69%,40%)'} />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="sla" fill="none" barSize={0}>
-                    {stageTimingData.map((_, i) => (
-                      <Cell key={i} fill="transparent" />
-                    ))}
+                    {stageTimingData.map((entry, i) => <Cell key={i} fill={entry.media > entry.sla ? 'hsl(0,72%,50%)' : 'hsl(152,69%,40%)'} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Pacientes por Linha */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" /> Pacientes por Linha & Adesão
-              </CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4 text-primary" /> Pacientes por Linha & Adesão</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {lineData.map(l => (
@@ -219,9 +205,7 @@ export default function DashboardGestor() {
                       <span className="font-medium text-foreground">{l.name}</span>
                       <div className="flex gap-3 text-[10px] text-muted-foreground">
                         <span>{l.pacientes} pac.</span>
-                        <span className={l.adesao < 70 ? 'text-[hsl(var(--destructive))] font-semibold' : 'text-[hsl(var(--success))]'}>
-                          {l.adesao}% adesão
-                        </span>
+                        <span className={l.adesao < 70 ? 'text-[hsl(var(--destructive))] font-semibold' : 'text-[hsl(var(--success))]'}>{l.adesao}% adesão</span>
                       </div>
                     </div>
                     <div className="flex gap-1 items-center">
@@ -229,10 +213,7 @@ export default function DashboardGestor() {
                         <div className="h-full rounded-full bg-primary" style={{ width: `${(l.pacientes / 220) * 100}%` }} />
                       </div>
                       <div className="w-12 h-1.5 rounded-full bg-secondary overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${l.adesao >= 70 ? 'bg-[hsl(var(--success))]' : 'bg-[hsl(var(--destructive))]'}`}
-                          style={{ width: `${l.adesao}%` }}
-                        />
+                        <div className={`h-full rounded-full ${l.adesao >= 70 ? 'bg-[hsl(var(--success))]' : 'bg-[hsl(var(--destructive))]'}`} style={{ width: `${l.adesao}%` }} />
                       </div>
                     </div>
                   </div>
@@ -246,13 +227,8 @@ export default function DashboardGestor() {
       <div>
         <p className="section-label">Resultados Clínicos & Prioridades</p>
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          {/* % em Meta */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Target className="h-4 w-4 text-primary" /> % Pacientes em Meta
-              </CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Target className="h-4 w-4 text-primary" /> % Pacientes em Meta</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={goalData} layout="vertical">
@@ -261,53 +237,40 @@ export default function DashboardGestor() {
                   <Tooltip contentStyle={tooltipStyle} />
                   <ReferenceLine x={70} stroke="hsl(152,69%,40%)" strokeDasharray="3 3" label={{ value: '70%', fill: 'hsl(152,69%,40%)', fontSize: 10 }} />
                   <Bar dataKey="pct" radius={[0, 4, 4, 0]} barSize={16}>
-                    {goalData.map((entry, i) => (
-                      <Cell key={i} fill={entry.pct >= 70 ? 'hsl(152,69%,40%)' : 'hsl(207,100%,31%)'} />
-                    ))}
+                    {goalData.map((entry, i) => <Cell key={i} fill={entry.pct >= 70 ? 'hsl(152,69%,40%)' : 'hsl(207,100%,31%)'} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Coortes Prioritárias */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-[hsl(var(--destructive))]" /> Coortes Prioritárias
-              </CardTitle>
-            </CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-[hsl(var(--destructive))]" /> Coortes Prioritárias</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {priorityCohorts.map(p => {
-                const outGoals = p.goals.filter(g => isOutOfTarget(g));
+                const pGoals = parseGoals(p.goals);
+                const outGoals = pGoals.filter(g => isOutOfTarget(g));
                 return (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0 cursor-pointer hover:bg-muted/30 rounded px-1 transition-colors"
-                    onClick={() => navigate(`/jornada-clinica?paciente=${p.id}`)}
-                  >
+                  <div key={p.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 cursor-pointer hover:bg-muted/30 rounded px-1 transition-colors"
+                    onClick={() => navigate(`/jornada-clinica?paciente=${p.id}`)}>
                     <div className="flex items-center gap-2">
-                      <RiskSemaphore level={p.riskLevel} score={p.scoreRisco} showLabel={false} />
+                      <RiskSemaphore level={riskLevel(p)} score={p.score_risco || 0} showLabel={false} />
                       <div>
                         <p className="text-xs font-medium text-foreground">{p.nome}</p>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {outGoals.slice(0, 3).map(g => (
-                            <Badge key={g.field} variant="destructive" className="text-[9px] px-1.5 py-0 font-mono">
-                              {g.label}: {g.currentValue}{g.unit}
-                            </Badge>
+                            <Badge key={g.field} variant="destructive" className="text-[9px] px-1.5 py-0 font-mono">{g.label}: {g.currentValue}{g.unit}</Badge>
                           ))}
-                          {outGoals.length === 0 && (
-                            <span className="text-[10px] text-[hsl(var(--success))]">Em meta ✓</span>
-                          )}
+                          {outGoals.length === 0 && <span className="text-[10px] text-[hsl(var(--success))]">Em meta ✓</span>}
                         </div>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-[10px] text-muted-foreground">{p.diasSemRetorno}d sem retorno</p>
+                      <p className="text-[10px] text-muted-foreground">{p.dias_sem_retorno}d sem retorno</p>
                       <div className="flex gap-1 justify-end mt-0.5">
-                        {p.linhasAtivas.slice(0, 2).map(l => (
+                        {(p.linhas_ativas || []).slice(0, 2).map((l: string) => (
                           <span key={l} className="text-[9px] bg-secondary text-muted-foreground rounded px-1.5 py-0.5">
-                            {careLines.find(cl => cl.id === l)?.name.split(' ')[0]}
+                            {careLines.find(cl => cl.id === l)?.name?.split(' ')[0]}
                           </span>
                         ))}
                       </div>
@@ -318,12 +281,10 @@ export default function DashboardGestor() {
             </CardContent>
           </Card>
 
-          {/* Insights AI */}
           <Card className="lg:col-span-2 border-primary/20 bg-gradient-to-br from-card to-primary/[0.03]">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Insights HealthBit AI
+                <Sparkles className="h-4 w-4 text-primary" /> Insights HealthBit AI
                 <Badge variant="secondary" className="text-[9px] px-1.5 py-0 ml-1">beta</Badge>
               </CardTitle>
               <p className="text-[10px] text-muted-foreground">Análises agregadas geradas automaticamente</p>
@@ -331,14 +292,11 @@ export default function DashboardGestor() {
             <CardContent>
               <div className="grid gap-3 md:grid-cols-2">
                 {mockAIInsights.map(insight => (
-                  <div
-                    key={insight.id}
-                    className={`rounded-xl p-3 border text-xs leading-relaxed ${
-                      insight.severidade === 'critical'
-                        ? 'border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5 text-foreground'
-                        : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 text-foreground'
-                    }`}
-                  >
+                  <div key={insight.id} className={`rounded-xl p-3 border text-xs leading-relaxed ${
+                    insight.severidade === 'critical'
+                      ? 'border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5 text-foreground'
+                      : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 text-foreground'
+                  }`}>
                     <div className="flex items-start gap-2">
                       <Sparkles className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${
                         insight.severidade === 'critical' ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--warning))]'
