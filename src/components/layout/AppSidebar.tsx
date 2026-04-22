@@ -9,6 +9,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
+import { APP_NAME, APP_VERSION, APP_TAGLINE } from '@/config/app';
 
 interface NavItem {
   title: string;
@@ -74,8 +75,8 @@ export function AppSidebar() {
               <Route className="h-4 w-4 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-foreground">HealthBit</h1>
-              <p className="text-[10px] text-muted-foreground">CareJourney · v3.0</p>
+              <h1 className="text-sm font-bold text-foreground">{APP_NAME}</h1>
+              <p className="text-[10px] text-muted-foreground">{APP_TAGLINE} · {APP_VERSION}</p>
             </div>
           </div>
         )}
@@ -116,7 +117,7 @@ export function AppSidebar() {
       </SidebarContent>
       {!collapsed && (
         <SidebarFooter className="p-4 pt-0">
-          <p className="text-[10px] text-muted-foreground text-center">HealthBit · v3.0</p>
+          <p className="text-[10px] text-muted-foreground text-center">{APP_NAME} · {APP_VERSION}</p>
         </SidebarFooter>
       )}
     </Sidebar>

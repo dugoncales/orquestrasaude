@@ -229,7 +229,7 @@ export default function DashboardProfissional() {
                 const currentStepName = pJourney ? pSteps[pJourney.current_step_index ?? 0]?.name : '';
                 return (
                   <div key={p.id} className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded-lg p-2.5 -mx-1 transition-colors"
-                    onClick={() => navigate(`/jornada-clinica?paciente=${p.id}`)}>
+                    onClick={() => navigate(`/jornadas?paciente=${p.id}`)}>
                     <RiskSemaphore level={riskLevel(p)} score={p.score_risco || 0} showLabel={false} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
