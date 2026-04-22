@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { usePatients } from '@/hooks/usePatients';
 import { useJourneys } from '@/hooks/useJourneys';
 import { useAllJourneySteps } from '@/hooks/useJourneys';
@@ -62,8 +63,14 @@ export default function JornadaClinica() {
   const paramRecords = paramRecordsData || [];
   const careLines = (careLinesData || []).map(mapCareLine);
 
-  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [searchParams] = useSearchParams();
+  const queryPatientId = searchParams.get('paciente') || '';
+  const [selectedPatientId, setSelectedPatientId] = useState(queryPatientId);
   const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (queryPatientId) setSelectedPatientId(queryPatientId);
+  }, [queryPatientId]);
 
   // Auto-select first patient
   const effectivePatientId = selectedPatientId || patients[0]?.id || '';
@@ -252,7 +259,7 @@ export default function JornadaClinica() {
                   <p className="text-[10px] font-semibold text-[hsl(var(--destructive))] uppercase tracking-wider flex items-center gap-1">
                     <Zap className="h-3 w-3" /> Alertas Clínicos
                   </p>
-                  {clinicalAlerts.map(a => <AlertBanner key={a.id} alert={{ id: a.id, tipo: a.tipo, severidade: a.severidade as any, mensagem: a.mensagem, data: a.data, lido: a.lido ?? false, patientId: a.patient_id || undefined, patientName: a.patient_name || undefined }} />)}
+                  {clinicalAlerts.map(a => <AlertBanner key={a.id} alert={{ id: a.id, tipo: a.tipo as any, severidade: a.severidade as any, mensagem: a.mensagem, data: a.data, lido: a.lido ?? false, patientId: a.patient_id || undefined, patientName: a.patient_name || undefined }} />)}
                 </div>
               )}
               {operationalAlerts.length > 0 && (
@@ -260,7 +267,7 @@ export default function JornadaClinica() {
                   <p className="text-[10px] font-semibold text-[hsl(var(--status-pending))] uppercase tracking-wider flex items-center gap-1">
                     <CalendarDays className="h-3 w-3" /> Alertas Operacionais
                   </p>
-                  {operationalAlerts.map(a => <AlertBanner key={a.id} alert={{ id: a.id, tipo: a.tipo, severidade: a.severidade as any, mensagem: a.mensagem, data: a.data, lido: a.lido ?? false, patientId: a.patient_id || undefined, patientName: a.patient_name || undefined }} />)}
+                  {operationalAlerts.map(a => <AlertBanner key={a.id} alert={{ id: a.id, tipo: a.tipo as any, severidade: a.severidade as any, mensagem: a.mensagem, data: a.data, lido: a.lido ?? false, patientId: a.patient_id || undefined, patientName: a.patient_name || undefined }} />)}
                 </div>
               )}
             </div>
