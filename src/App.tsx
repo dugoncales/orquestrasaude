@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import DashboardRouter from "./pages/DashboardRouter";
 import Pacientes from "./pages/Pacientes";
 import PerfilPaciente from "./pages/PerfilPaciente";
@@ -17,6 +18,8 @@ import BI from "./pages/BI";
 import IAplanilhas from "./pages/IAplanilhas";
 import EditorNoCode from "./pages/EditorNoCode";
 import StudioAdmin from "./pages/StudioAdmin";
+import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,27 +29,41 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<DashboardRouter />} />
-              <Route path="/pacientes" element={<Pacientes />} />
-              <Route path="/pacientes/:id" element={<PerfilPaciente />} />
-              <Route path="/jornadas" element={<JornadaClinica />} />
-              <Route path="/linhas-de-cuidado" element={<LinhasDeCuidado />} />
-              <Route path="/consultas" element={<Consultas />} />
-              <Route path="/exames" element={<Exames />} />
-              <Route path="/questionarios" element={<Questionarios />} />
-              <Route path="/bi" element={<BI />} />
-              <Route path="/ia" element={<IAplanilhas />} />
-              <Route path="/editor" element={<EditorNoCode />} />
-              <Route path="/configuracoes" element={<StudioAdmin />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
-        </BrowserRouter>
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* Private routes */}
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <Routes>
+                      <Route path="/" element={<DashboardRouter />} />
+                      <Route path="/pacientes" element={<Pacientes />} />
+                      <Route path="/pacientes/:id" element={<PerfilPaciente />} />
+                      <Route path="/jornadas" element={<JornadaClinica />} />
+                      <Route path="/linhas-de-cuidado" element={<LinhasDeCuidado />} />
+                      <Route path="/consultas" element={<Consultas />} />
+                      <Route path="/exames" element={<Exames />} />
+                      <Route path="/questionarios" element={<Questionarios />} />
+                      <Route path="/bi" element={<BI />} />
+                      <Route path="/ia" element={<IAplanilhas />} />
+                      <Route path="/editor" element={<EditorNoCode />} />
+                      <Route path="/configuracoes" element={<StudioAdmin />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
