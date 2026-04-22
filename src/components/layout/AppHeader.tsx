@@ -9,7 +9,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { UserRole } from '@/data/types';
 import { useAlerts } from '@/hooks/useAlerts';
-import { APP_NAME, ENABLE_ROLE_SWITCHER } from '@/config/app';
+import { APP_NAME } from '@/config/app';
 import { toast } from '@/hooks/use-toast';
 
 const roleLabels: Record<UserRole, string> = {
@@ -34,7 +34,7 @@ const routeLabels: Record<string, string> = {
 };
 
 export function AppHeader() {
-  const { currentUser, currentRole, setRole, signOut } = useAuth();
+  const { currentUser, currentRole, availableRoles, canRoleSwitcherOverride, setRole, signOut } = useAuth();
   const location = useLocation();
   const { data: alerts } = useAlerts();
   const safeAlerts = alerts || [];
@@ -50,6 +50,11 @@ export function AppHeader() {
     await signOut();
     toast({ title: 'Sessão encerrada' });
   };
+
+  const canSwitchRole = canRoleSwitcherOverride || availableRoles.length > 1;
+  const roleOptions = canRoleSwitcherOverride
+    ? (Object.keys(roleLabels) as UserRole[])
+    : availableRoles;
 
   return (
     <header className="h-14 flex items-center justify-between border-b border-border bg-card/80 backdrop-blur-xl px-4">
@@ -67,7 +72,7 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-3">
-        {ENABLE_ROLE_SWITCHER && (
+        {canSwitchRole && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1 text-xs h-8">
@@ -76,9 +81,9 @@ export function AppHeader() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Trocar Perfil (dev)</DropdownMenuLabel>
+              <DropdownMenuLabel>{canRoleSwitcherOverride ? 'Trocar Perfil (dev)' : 'Trocar Perfil'}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(Object.keys(roleLabels) as UserRole[]).map(role => (
+              {roleOptions.map(role => (
                 <DropdownMenuItem key={role} onClick={() => setRole(role)} className={role === currentRole ? 'bg-accent' : ''}>
                   {roleLabels[role]}
                 </DropdownMenuItem>
@@ -87,7 +92,7 @@ export function AppHeader() {
           </DropdownMenu>
         )}
 
-        {!ENABLE_ROLE_SWITCHER && (
+        {!canSwitchRole && (
           <Badge variant="secondary" className="text-[10px] h-6 hidden sm:inline-flex">
             {roleLabels[currentRole]}
           </Badge>
