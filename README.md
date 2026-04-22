@@ -32,12 +32,7 @@ O arquivo `.env` é gerado automaticamente pelo Lovable Cloud. **Não edite manu
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `VITE_DEMO_MODE` | `false` | Quando `true`, habilita modo demo e libera troca para **todas** as roles no header (paciente/profissional/gestor/admin), independente dos roles do usuário no banco. Recomendado apenas para demonstrações. |
 | `VITE_ENABLE_ROLE_SWITCHER` | `false` | Quando `true`, exibe o seletor de perfil (paciente/profissional/gestor/admin) no header. Útil para demos e desenvolvimento; **não habilitar em produção**. |
-| `VITE_ROLE_SWITCHER_ALLOWLIST` | `dugoncales@gmail.com` | Lista de e-mails (separados por vírgula) que podem usar troca de perfil em modo dev, mesmo sem múltiplos roles carregados no banco. Se a variável estiver vazia, o fallback continua `dugoncales@gmail.com`. |
-
-> Mesmo com `VITE_ENABLE_ROLE_SWITCHER=false`, usuários com múltiplos roles reais em `user_roles` podem alternar entre seus perfis permitidos no header.  
-> Com `VITE_DEMO_MODE=true`, qualquer usuário autenticado consegue alternar para todas as roles para fins de demonstração.
 
 ---
 
@@ -57,20 +52,7 @@ npm run build       # build de produção
 npm run preview     # preview do build
 npm run test        # roda Vitest
 npm run lint        # lint do projeto
-npm run doctor:test-env   # verifica se ambiente de teste está pronto
-npm run setup:dev         # prepara ambiente (instala deps e valida vitest)
 ```
-
-### Problema comum: `vitest: not found`
-
-Se aparecer `sh: 1: vitest: not found`, o ambiente está sem dependências locais.
-
-```bash
-npm run setup:dev
-npm test -- --run src/test/carejourney-phase1.test.ts
-```
-
-Se ainda falhar com erro de rede/proxy, ajuste as variáveis de proxy do ambiente antes de rodar o setup.
 
 ---
 

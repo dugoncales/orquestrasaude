@@ -10,9 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "doctor:test-env": "bash scripts/dev-setup.sh --check",
-    "setup:dev": "bash scripts/dev-setup.sh"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

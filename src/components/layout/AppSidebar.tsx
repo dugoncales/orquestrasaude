@@ -10,8 +10,6 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { APP_NAME, APP_VERSION, APP_TAGLINE } from '@/config/app';
-import { resolveRoutePermission } from '@/config/permissions';
-import { can } from '@/domain/carejourney';
 
 interface NavItem {
   title: string;
@@ -64,11 +62,7 @@ export function AppSidebar() {
   const { currentRole } = useAuth();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const items = (menuByRole[currentRole] || []).filter((item) => {
-    const permission = resolveRoutePermission(item.url);
-    if (!permission) return true;
-    return can(currentRole, permission.resource, permission.action);
-  });
+  const items = menuByRole[currentRole];
 
   const groups = ['core', 'analysis', 'admin'].filter(g => items.some(i => i.group === g));
 
