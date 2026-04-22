@@ -1,99 +1,78 @@
 
 
-# Plano: Migrar Páginas Restantes para Supabase e Remover Mocks
+# Plano: Correção de Build + Sprint 1 (alto impacto, baixo esforço)
 
-Migrar 7 páginas que ainda importam dados de `mock-data.ts`, `mock-patients.ts` e `care-lines.ts` para usar os hooks Supabase existentes. Depois deletar os 3 arquivos mock.
-
----
-
-## Padrão de Migração
-
-Cada página seguirá o mesmo padrão:
-1. Remover imports de mock/care-lines
-2. Adicionar hooks Supabase (`usePatients`, `useCareLines`, `useJourneys`, etc.)
-3. Usar `mapCareLine`, `parseGoals`, `riskLevel` de `db-helpers.ts` para converter snake_case -> camelCase
-4. Adicionar loading state (`if (isLoading) return <Skeleton />`)
-5. Adaptar acesso a campos (ex: `patient.riskLevel` -> `riskLevel(patient)`, `j.careLineId` -> `j.care_line_id`)
+Corrigir o erro de build atual e aplicar as correções imediatas listadas: navegação quebrada do dashboard, branding inconsistente, header com role-switcher de demo, e README. As mudanças estruturais maiores (auth real, profiles, RLS por role, refator do `DashboardPaciente`) ficam para Sprints seguintes — esse plano cobre apenas a fila marcada como **Sprint 1** + o build error.
 
 ---
 
-## Mudanças por Arquivo
+## 1. Corrigir build error (`JornadaClinica.tsx` linhas 257 e 263)
 
-### 1. `PerfilPaciente.tsx`
-- Hooks: `usePatient(id)`, `useJourneys(id)`, `useAllJourneySteps()`, `useAppointments()`, `useExams()`, `useTasks()`, `useAlerts()`, `useParameterRecords()`, `useCareLines()`
-- Adaptar: `patient.nome` -> `patient.nome`, `patient.riskLevel` -> `riskLevel(patient)`, goals via `parseGoals(patient.goals)`, timeline com snake_case fields
+O problema: ao passar alertas vindos do banco para `AlertBanner`, o campo `tipo` é `string` (banco), mas o tipo `Alert` da UI exige union `'clinico' | 'operacional' | 'sistema'`.
 
-### 2. `JornadaClinica.tsx` (mais complexa)
-- Hooks: `usePatients`, `useJourneys`, `useAllJourneySteps`, `useAppointments`, `useExams`, `useTasks`, `useAlerts`, `useQuestionnaireResponses`, `useParameterRecords`, `useCareLines`
-- Journey steps vêm de tabela separada -> filtrar por `journey_id`
-- `journey.steps[i]` -> `steps.filter(s => s.journey_id === journey.id)`
-- `currentStep` via `journey.current_step_index` + steps filtrados
-- `getTrend()` usa `parameterRecords` do hook
-- `MultiLineOverview` já foi atualizado — precisa passar `steps` prop
-- `ActionPanel` recebe appointments/exams/tasks do hook (filtrados)
+Solução: cast explícito `tipo: a.tipo as any` (consistente com o cast já feito em `severidade`). Mudança pontual em 2 linhas.
 
-### 3. `DashboardProfissional.tsx`
-- Hooks: `usePatients`, `useAppointments`, `useTasks`, `useAlerts`, `useJourneys`, `useAllJourneySteps`, `useCareLines`
-- KPIs calculados com dados dos hooks
-- `patientsNeedAction` usa `parseGoals` + `isOutOfTarget`
-- Agenda/Tarefas usam dados filtrados dos hooks
+## 2. Corrigir rota quebrada do dashboard profissional
 
-### 4. `DashboardGestor.tsx`
-- Hooks: `usePatients`, `useAppointments`, `useTasks`, `useJourneys`, `useAllJourneySteps`, `useAlerts`, `useCareLines`
-- `mockAIInsights` mantido inline (não é entidade do banco)
-- `produtividade` calculada com appointments/tasks dos hooks
-- `mockPermissionsMatrix` referenciado no StudioAdmin mas não aqui
+`src/pages/DashboardProfissional.tsx` (linha 232): trocar `navigate('/jornada-clinica?paciente=${p.id}')` por `navigate('/jornadas?paciente=${p.id}')`.
 
-### 5. `DashboardPaciente.tsx`
-- Hooks: `usePatients`, `useJourneys`, `useAllJourneySteps`, `useAppointments`, `useExams`, `useQuestionnaireResponses`, `useOrientacoes`, `useCareLines`
-- Filtrar por `patientId` (primeiro paciente no banco, ou via AuthContext)
-- `activeJourney.steps[i]` -> steps filtrados da tabela `journey_steps`
+`src/pages/JornadaClinica.tsx`: ler `?paciente=` via `useSearchParams` e usar como valor inicial de `selectedPatientId` (sem alterar lógica geral).
 
-### 6. `BI.tsx`
-- Hooks: `usePatients`, `useJourneys`, `useAppointments`, `useExams`, `useTasks`, `useQuestionnaireResponses`, `useParameterRecords`, `useCareLines`
-- Todos os cálculos (operacional, clínico, executivo) adaptados para dados dos hooks com snake_case
+## 3. Branding centralizado "Orquestra Care"
 
-### 7. `LinhasDeCuidado.tsx`
-- Hooks: `useCareLines`, `usePatients`
-- `careLines` -> `mapCareLine()` dos dados do hook
-- `mockPatients` -> `usePatients()` com campos snake_case
-- `CareLineDetail` e `IntegratedView` adaptados
+Criar `src/config/app.ts`:
 
-### 8. `StudioAdmin.tsx`
-- Hooks: `useAutomationRules`, `useCareLines`
-- `careLines` -> hook + `mapCareLine()`
-- `mockAutomationRules` -> `useAutomationRules()`
-- `mockPermissionsMatrix` mantido inline (config, não dado do banco)
-- `mockUsers` e `mockAudit` mantidos inline (não há tabela de users ainda)
+```ts
+export const APP_NAME = "Orquestra Care";
+export const APP_VERSION = "v1.0";
+export const APP_TAGLINE = "Gestão de Jornadas Clínicas";
+```
 
-### 9. `EditorNoCode.tsx`
-- Hook: `useCareLines`
-- `initialCareLines` -> dados do hook + `mapCareLine()`
-- Mutations para salvar alterações nas care lines (update via Supabase)
+Atualizar:
+- `src/components/layout/AppSidebar.tsx`: header e footer passam a usar `APP_NAME` / `APP_VERSION`.
+- `src/components/layout/AppHeader.tsx`: breadcrumb mostra `APP_NAME` em vez de "HealthBit".
+- `index.html`: `<title>` para "Orquestra Care".
+
+## 4. Header: trocar dropdown de roles por menu de usuário (com flag dev)
+
+`src/components/layout/AppHeader.tsx`:
+- Manter o role-switcher **apenas** quando `import.meta.env.VITE_ENABLE_ROLE_SWITCHER === 'true'`.
+- Em produção (default), substituir por um `DropdownMenu` real do usuário com:
+  - Nome + email no header do menu
+  - Item "Meu perfil" (placeholder, navega para `/perfil` — rota a criar como stub no futuro; por enquanto desabilitado)
+  - Item "Sair" (por enquanto chama `toast` "Logout em breve" — auth real virá no Sprint 2)
+- O badge da role atual continua visível ao lado do avatar (informativo, não clicável).
+
+## 5. README útil
+
+Reescrever `README.md` com:
+- Objetivo do app (gestão de jornadas clínicas)
+- Stack (React 18 + Vite + Tailwind + shadcn + Supabase via Lovable Cloud + React Query)
+- Variáveis de ambiente (.env auto-gerado: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`; opcional `VITE_ENABLE_ROLE_SWITCHER`)
+- Como rodar local (`npm i && npm run dev`)
+- Como publicar (Lovable → Publish)
+- Visão das roles (patient / professional / manager / admin)
+- Visão do schema (lista das 13 tabelas e relações principais)
 
 ---
 
-## Arquivos a Deletar
+## Arquivos editados
 
-- `src/data/mock-data.ts`
-- `src/data/mock-patients.ts`
-- `src/data/care-lines.ts`
+| Arquivo | Mudança |
+|---|---|
+| `src/pages/JornadaClinica.tsx` | cast `tipo: a.tipo as any` (2 linhas) + ler `?paciente` via `useSearchParams` |
+| `src/pages/DashboardProfissional.tsx` | corrigir rota `/jornadas?paciente=...` |
+| `src/config/app.ts` | **novo** — constantes de branding |
+| `src/components/layout/AppSidebar.tsx` | usar `APP_NAME` / `APP_VERSION` |
+| `src/components/layout/AppHeader.tsx` | breadcrumb com `APP_NAME`; menu de usuário real; role-switcher só com `VITE_ENABLE_ROLE_SWITCHER=true` |
+| `index.html` | `<title>` para Orquestra Care |
+| `README.md` | documentação completa |
 
-## Arquivos Mantidos
+## Fora de escopo (Sprints seguintes)
 
-- `src/data/types.ts` — tipos TypeScript usados na UI
-- `src/data/parameters.ts` — dicionário de parâmetros clínicos (config estática)
-
----
-
-## Nota sobre AuthContext
-
-O `AuthContext` ainda usa IDs hardcoded. Para `DashboardPaciente`, buscaremos o primeiro paciente do banco como fallback até a autenticação real ser implementada.
-
-## Ordem de Implementação
-
-1. Páginas simples primeiro: `PerfilPaciente`, `LinhasDeCuidado`, `StudioAdmin`, `EditorNoCode`
-2. Dashboards: `DashboardProfissional`, `DashboardGestor`, `DashboardPaciente`
-3. Página complexa: `JornadaClinica`, `BI`
-4. Deletar arquivos mock
+- Auth real com Supabase + tabela `profiles` + `user_roles` (Sprint 2)
+- Refator de `DashboardPaciente` removendo mocks (Sprint 3)
+- Hooks especializados (`useTodayAppointments`, `usePendingTasks`, etc.) e `id` vs `slug` em `mapCareLine` (Sprint 4)
+- RLS por role, audit logs, anexos (Sprint 5)
+- Melhorias de timeline e formatação de sexo em `PerfilPaciente` (vão junto do Sprint 3)
 
