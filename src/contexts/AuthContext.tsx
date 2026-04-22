@@ -2,7 +2,9 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/data/types';
-import { ENABLE_ROLE_SWITCHER } from '@/config/app';
+import { DEMO_MODE_ENABLED, ENABLE_ROLE_SWITCHER, ROLE_SWITCHER_ALLOWLIST } from '@/config/app';
+
+const DEV_ROLE_STORAGE_KEY = 'orquestra:dev_role_override';
 
 interface Profile {
   id: string;
@@ -17,6 +19,8 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   role: UserRole | null;
+  availableRoles: UserRole[];
+  canRoleSwitcherOverride: boolean;
   patientId: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -36,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRoleState] = useState<UserRole | null>(null);
+  const [availableRoles, setAvailableRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dev-only override (not persisted)
@@ -51,9 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Pick highest privilege role if multiple
     const order: UserRole[] = ['admin', 'manager', 'professional', 'patient'];
-    const roles = (roleRows || []).map(r => r.role as UserRole);
-    const best = order.find(r => roles.includes(r)) || null;
-    setRoleState(best);
+    const roles = Array.from(new Set((roleRows || []).map(r => r.role as UserRole)));
+    setAvailableRoles(roles);
+    const savedRole = localStorage.getItem(DEV_ROLE_STORAGE_KEY) as UserRole | null;
+    const selectedRole = savedRole && roles.includes(savedRole)
+      ? savedRole
+      : order.find(r => roles.includes(r)) || null;
+
+    setRoleState(selectedRole);
   };
 
   useEffect(() => {
@@ -70,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null);
         setRoleState(null);
+        setAvailableRoles([]);
+        setDevRoleOverride(null);
       }
     });
 
@@ -107,12 +119,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setDevRoleOverride(null);
+    localStorage.removeItem(DEV_ROLE_STORAGE_KEY);
   };
 
-  const effectiveRole = (ENABLE_ROLE_SWITCHER && devRoleOverride) || role || 'professional';
+  const userEmail = (profile?.email ?? user?.email ?? '').toLowerCase();
+  const canUseDevRoleOverride =
+    DEMO_MODE_ENABLED ||
+    ENABLE_ROLE_SWITCHER ||
+    ROLE_SWITCHER_ALLOWLIST.includes('*') ||
+    ROLE_SWITCHER_ALLOWLIST.includes(userEmail);
+
+  useEffect(() => {
+    if (!canUseDevRoleOverride) return;
+
+    const savedRole = localStorage.getItem(DEV_ROLE_STORAGE_KEY) as UserRole | null;
+    if (savedRole) {
+      setDevRoleOverride(savedRole);
+    }
+  }, [canUseDevRoleOverride]);
+
+  const effectiveRole = (canUseDevRoleOverride && devRoleOverride) || role || 'professional';
 
   const setRole = (r: UserRole) => {
-    if (ENABLE_ROLE_SWITCHER) setDevRoleOverride(r);
+    if (canUseDevRoleOverride) {
+      setDevRoleOverride(r);
+      localStorage.setItem(DEV_ROLE_STORAGE_KEY, r);
+      return;
+    }
+
+    if (availableRoles.includes(r)) {
+      setRoleState(r);
+      localStorage.setItem(DEV_ROLE_STORAGE_KEY, r);
+    }
   };
 
   const currentUser = {
@@ -130,6 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         profile,
         role: effectiveRole,
+        availableRoles,
+        canRoleSwitcherOverride: canUseDevRoleOverride,
         patientId: profile?.patient_id ?? null,
         loading,
         signIn,
