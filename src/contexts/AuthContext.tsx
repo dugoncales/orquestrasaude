@@ -1,35 +1,145 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/data/types';
+import { ENABLE_ROLE_SWITCHER } from '@/config/app';
 
-interface AuthUser {
+interface Profile {
   id: string;
-  name: string;
-  role: UserRole;
-  email: string;
-  patientId?: string;
+  full_name: string | null;
+  email: string | null;
+  avatar: string | null;
+  patient_id: string | null;
 }
 
 interface AuthContextType {
-  currentUser: AuthUser;
+  user: User | null;
+  session: Session | null;
+  profile: Profile | null;
+  role: UserRole | null;
+  patientId: string | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+
+  // Compat helpers (retained for legacy components that read role/user shape)
   currentRole: UserRole;
+  currentUser: { id: string; name: string; email: string; role: UserRole; patientId?: string };
   setRole: (role: UserRole) => void;
 }
-
-const users: Record<UserRole, AuthUser> = {
-  patient: { id: 'u1', name: 'Maria da Silva Santos', role: 'patient', email: 'maria@email.com', patientId: 'p1' },
-  professional: { id: 'u2', name: 'Dra. Ana Beatriz', role: 'professional', email: 'ana@clinica.com' },
-  manager: { id: 'u3', name: 'Dr. Fernando Gestão', role: 'manager', email: 'fernando@clinica.com' },
-  admin: { id: 'u4', name: 'Admin Sistema', role: 'admin', email: 'admin@carejourney.com' },
-};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRole] = useState<UserRole>('professional');
-  const currentUser = users[currentRole];
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [role, setRoleState] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Dev-only override (not persisted)
+  const [devRoleOverride, setDevRoleOverride] = useState<UserRole | null>(null);
+
+  const loadProfileAndRole = async (userId: string) => {
+    const [{ data: profileRow }, { data: roleRows }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, email, avatar, patient_id').eq('id', userId).maybeSingle(),
+      supabase.from('user_roles').select('role').eq('user_id', userId),
+    ]);
+
+    setProfile(profileRow as Profile | null);
+
+    // Pick highest privilege role if multiple
+    const order: UserRole[] = ['admin', 'manager', 'professional', 'patient'];
+    const roles = (roleRows || []).map(r => r.role as UserRole);
+    const best = order.find(r => roles.includes(r)) || null;
+    setRoleState(best);
+  };
+
+  useEffect(() => {
+    // 1. Set up listener FIRST (sync only)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
+        // Defer async work to avoid deadlock with auth state
+        setTimeout(() => {
+          loadProfileAndRole(newSession.user.id);
+        }, 0);
+      } else {
+        setProfile(null);
+        setRoleState(null);
+      }
+    });
+
+    // 2. Then fetch existing session
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      if (existingSession?.user) {
+        loadProfileAndRole(existingSession.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error };
+  };
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        data: { full_name: fullName },
+      },
+    });
+    return { error };
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setDevRoleOverride(null);
+  };
+
+  const effectiveRole = (ENABLE_ROLE_SWITCHER && devRoleOverride) || role || 'professional';
+
+  const setRole = (r: UserRole) => {
+    if (ENABLE_ROLE_SWITCHER) setDevRoleOverride(r);
+  };
+
+  const currentUser = {
+    id: user?.id ?? 'anonymous',
+    name: profile?.full_name ?? user?.email ?? 'Usuário',
+    email: profile?.email ?? user?.email ?? '',
+    role: effectiveRole,
+    patientId: profile?.patient_id ?? undefined,
+  };
 
   return (
-    <AuthContext.Provider value={{ currentUser, currentRole, setRole: setCurrentRole }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        role: effectiveRole,
+        patientId: profile?.patient_id ?? null,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        currentRole: effectiveRole,
+        currentUser,
+        setRole,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

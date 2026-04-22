@@ -34,7 +34,7 @@ const routeLabels: Record<string, string> = {
 };
 
 export function AppHeader() {
-  const { currentUser, currentRole, setRole } = useAuth();
+  const { currentUser, currentRole, setRole, signOut } = useAuth();
   const location = useLocation();
   const { data: alerts } = useAlerts();
   const safeAlerts = alerts || [];
@@ -46,8 +46,9 @@ export function AppHeader() {
 
   const initials = currentUser.name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
 
-  const handleSignOut = () => {
-    toast({ title: 'Logout em breve', description: 'Autenticação real será habilitada em uma próxima sprint.' });
+  const handleSignOut = async () => {
+    await signOut();
+    toast({ title: 'Sessão encerrada' });
   };
 
   return (
