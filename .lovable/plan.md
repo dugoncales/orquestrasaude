@@ -1,54 +1,88 @@
 
 
-# Plano: Multi-roles + acesso completo para dugoncales@gmail.com
+# Plano: Sprint 3 — Eliminar mocks restantes + UX clínica
 
-Permitir que um usuário tenha múltiplos perfis (`patient`, `professional`, `manager`, `admin`) e alterne entre as visões pelo header. Conceder os 4 roles à conta `dugoncales@gmail.com`.
-
----
-
-## 1. Banco — conceder os 4 roles ao usuário
-
-Usuário já existe: `4184cc80-80b5-4552-b05b-2474ca5a29bc` (`dugoncales@gmail.com`), hoje só tem `professional`.
-
-Inserir os 3 roles faltantes (`patient`, `manager`, `admin`) na tabela `user_roles`. A constraint `UNIQUE(user_id, role)` evita duplicatas, então usaremos `ON CONFLICT DO NOTHING`.
-
-> Vai ser feito via insert tool (operação de dados, não schema).
+Zerar dependência de `mock-*` em telas de produção, criar helpers de formatação e melhorar timeline do paciente. Após este sprint, os arquivos mock são deletados.
 
 ---
 
-## 2. AuthContext — expor lista de roles e permitir troca da role ativa
+## 1. Helpers de formatação (novo)
 
-`src/contexts/AuthContext.tsx`:
+`src/lib/format.ts`:
+- `formatSexo(s)` → `'Feminino' | 'Masculino' | 'Outro' | 'Não informado'`
+- `formatDateBR(d)` → `dd/MM/yyyy`
+- `formatDateTimeBR(d)` → `dd/MM/yyyy HH:mm`
+- `getInitials(name)` → iniciais para avatar
 
-- Carregar **todos** os roles do usuário (não só o de maior privilégio).
-- Expor:
-  - `roles: UserRole[]` — todos os roles do usuário no banco
-  - `activeRole: UserRole | null` — qual está em uso agora
-  - `setActiveRole(role: UserRole)` — troca a visão (entre as roles que o usuário possui)
-- Persistir a escolha em `localStorage` (chave `orquestra:activeRole:<userId>`) para sobreviver a reload.
-- Default: maior privilégio entre os roles disponíveis (mesma ordem atual: `admin > manager > professional > patient`).
-- Manter `role` (compat) apontando para `activeRole`.
-- Manter `setRole` antigo como alias de `setActiveRole`, mas **sem mais depender de `ENABLE_ROLE_SWITCHER`** quando o usuário realmente possui múltiplos roles. Trocar entre roles próprios é comportamento de produto, não dev.
-- `ENABLE_ROLE_SWITCHER` continua existindo só para forçar uma role que o usuário **não** tem (apenas dev).
+Aplicar em `PerfilPaciente.tsx`, `JornadaClinica.tsx`, `DashboardPaciente.tsx`.
 
 ---
 
-## 3. Header — seletor de visão quando o usuário tem 2+ roles
+## 2. Hook `useOrientacoes` — adicionar filtro por paciente
 
-`src/components/layout/AppHeader.tsx`:
-
-- Se `roles.length >= 2`: mostrar dropdown "Visão: <role atual>" com as roles do usuário, marcando a ativa. Trocar chama `setActiveRole`.
-- Se `roles.length === 1`: badge informativo (igual hoje).
-- Mostrar todos os roles do usuário no menu de perfil (lista compacta sob nome/email).
-- Manter o dropdown dev (`ENABLE_ROLE_SWITCHER`) só quando explicitamente ativado por env var, para simular roles que o usuário não tem.
+`src/hooks/useOrientacoes.ts`: aceitar `useOrientacoes(patientId?)` com filtro server-side opcional.
 
 ---
 
-## 4. Sidebar — refletir a role ativa
+## 3. `DashboardPaciente.tsx` — refator total
 
-`src/components/layout/AppSidebar.tsx` já lê `currentRole` do contexto, então atualiza automaticamente quando `activeRole` muda. Sem mudanças necessárias.
+Hoje importa `mockAppointments`, `mockExams`, `mockQuestionnaireResponses`, `mockJourneys`, `mockOrientacoes`, `mockPatients` e `careLines` estático, com `patientId = 'p1'` hardcoded.
 
-`DashboardRouter.tsx` também já reage a `role`, sem mudanças.
+Mudanças:
+- `patientId` vem de `useAuth().profile.patient_id`.
+- Hooks reais: `usePatient(patientId)`, `useJourneys(patientId)`, `useAllJourneySteps`, `useAppointments(patientId)`, `useExams(patientId)`, `useQuestionnaireResponses(patientId)`, `useOrientacoes(patientId)`, `useCareLines`.
+- Steps filtrados por `journey_id`; `currentStepIndex` vem da journey.
+- Goals via `parseGoals(patient.goals)`.
+- Estado vazio acolhedor quando `!patientId`: card centralizado "Seu acesso ainda não está vinculado a um prontuário. Procure sua equipe para vincular seu cadastro."
+- Loading skeletons enquanto queries carregam.
+
+---
+
+## 4. `BI.tsx` — refator total
+
+Hoje importa `mockPatients`, `mockJourneys`, `mockAppointments`, `mockTasks`, `mockExams`, `mockParameterRecords` e `careLines`.
+
+Mudanças:
+- Substituir todos os imports mock por hooks: `usePatients`, `useJourneys`, `useAppointments`, `useTasks`, `useExams`, `useParameterRecords`, `useCareLines`.
+- Adaptar cálculos para `snake_case` (`risk_level`, `care_line_id`, `data_solicitacao` etc.).
+- Usar `mapCareLine` para normalizar care lines.
+- Manter `parameterDictionary` (configuração estática, não é mock).
+- Loading state quando `isLoading` em qualquer hook chave.
+
+---
+
+## 5. Timeline melhorada (`PerfilPaciente.tsx`)
+
+Hoje: lista plana de 8 eventos, sem filtro nem agrupamento.
+
+Mudanças:
+- Tabs de filtro por tipo: `Todos | Consultas | Exames | Tarefas | Alertas`.
+- Container `max-h-[480px] overflow-y-auto` para scroll interno.
+- Agrupamento visual por mês (label "Abril 2026", "Março 2026" etc.).
+- Ícone por tipo (Calendar/FlaskConical/CheckSquare/AlertTriangle) com cor por status.
+- Aplicar `formatDateBR` consistentemente.
+- Aplicar `formatSexo` no header do paciente.
+
+---
+
+## 6. Cleanup final
+
+Deletar:
+- `src/data/mock-data.ts`
+- `src/data/mock-patients.ts`
+- `src/data/care-lines.ts`
+
+Manter:
+- `src/data/types.ts` (tipos de domínio)
+- `src/data/parameters.ts` (dicionário clínico, configuração)
+
+Verificar com busca global que nenhum import remanescente quebra o build antes de deletar.
+
+---
+
+## 7. Seed: profile demo vinculado a paciente real
+
+Migration de seed: vincular o `profiles` do usuário `dugoncales@gmail.com` ao primeiro paciente do banco (`patient_id = (SELECT id FROM patients ORDER BY created_at LIMIT 1)`), só se ainda for `NULL`. Permite testar a visão `patient` imediatamente após o login.
 
 ---
 
@@ -56,15 +90,19 @@ Inserir os 3 roles faltantes (`patient`, `manager`, `admin`) na tabela `user_rol
 
 | Arquivo | Mudança |
 |---|---|
-| (data migration via insert tool) | conceder `patient`, `manager`, `admin` para `dugoncales@gmail.com` |
-| `src/contexts/AuthContext.tsx` | expor `roles[]`, `activeRole`, `setActiveRole`; persistir em localStorage |
-| `src/components/layout/AppHeader.tsx` | dropdown "Visão" quando `roles.length >= 2`; lista de roles no menu de perfil |
+| `src/lib/format.ts` | **novo** — helpers `formatSexo`, `formatDateBR`, etc. |
+| `src/hooks/useOrientacoes.ts` | aceitar `patientId?` opcional |
+| `src/pages/DashboardPaciente.tsx` | refator total, zero mocks |
+| `src/pages/BI.tsx` | refator total, zero mocks |
+| `src/pages/PerfilPaciente.tsx` | timeline com tabs/scroll/agrupamento + formatadores |
+| `src/pages/JornadaClinica.tsx` | aplicar `formatSexo` / `formatDateBR` |
+| `supabase/migrations/...sql` | seed: vincular profile demo ao primeiro paciente |
+| **deletar** `src/data/mock-data.ts` | — |
+| **deletar** `src/data/mock-patients.ts` | — |
+| **deletar** `src/data/care-lines.ts` | — |
 
-## Fora de escopo (continuação dos sprints)
+## Fora de escopo (próximos sprints)
 
-- Sprint 3 (mocks restantes em `DashboardPaciente` e `BI`, helpers de formatação, timeline)
-- Sprint 4 (hooks especializados, `id` vs `slug`)
-- Sprint 5 (RLS por role, audit, anexos)
-
-Posso seguir com Sprint 3 logo após este ajuste se quiser.
+- Sprint 4: hooks especializados (`useTodayAppointments`, etc.) e `id` vs `slug` em `mapCareLine`
+- Sprint 5: RLS por role, audit logs, anexos, `professionals` + `patient_assignments`
 
