@@ -11,6 +11,7 @@ import { useQuestionnaireResponses } from '@/hooks/useQuestionnaireResponses';
 import { useParameterRecords } from '@/hooks/useParameterRecords';
 import { useCareLines } from '@/hooks/useCareLines';
 import { parseGoals, riskLevel, mapCareLine, mapStep } from '@/lib/db-helpers';
+import { formatSexo } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -205,7 +206,7 @@ export default function JornadaClinica() {
               <div>
                 <h2 className="text-lg font-bold text-foreground">{patient.nome}</h2>
                 <p className="text-xs text-muted-foreground">
-                  {calculateAge(patient.data_nascimento)} anos · {patient.sexo === 'F' ? 'Feminino' : 'Masculino'} · {patient.convenio}
+                  {calculateAge(patient.data_nascimento)} anos · {formatSexo(patient.sexo)} · {patient.convenio}
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {(patient.diagnosticos_ativos || []).map((d: string) => (
