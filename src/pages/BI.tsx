@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KPICard } from '@/components/shared/KPICard';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, Legend,
@@ -12,12 +13,17 @@ import {
   AlertTriangle, CheckCircle2, Brain, Heart, Scale, Pill,
   BarChart3, FileQuestion, Stethoscope,
 } from 'lucide-react';
-import { mockPatients } from '@/data/mock-patients';
-import {
-  mockJourneys, mockAppointments, mockExams, mockTasks,
-  mockQuestionnaireResponses, mockParameterRecords,
-} from '@/data/mock-data';
-import { careLines } from '@/data/care-lines';
+
+import { usePatients } from '@/hooks/usePatients';
+import { useJourneys } from '@/hooks/useJourneys';
+import { useAppointments } from '@/hooks/useAppointments';
+import { useExams } from '@/hooks/useExams';
+import { useTasks } from '@/hooks/useTasks';
+import { useQuestionnaireResponses } from '@/hooks/useQuestionnaireResponses';
+import { useParameterRecords } from '@/hooks/useParameterRecords';
+import { useCareLines } from '@/hooks/useCareLines';
+import { parseGoals, mapCareLine } from '@/lib/db-helpers';
+import type { PatientGoal } from '@/data/types';
 
 const tt = { background: 'hsl(220,18%,12%)', border: '1px solid hsl(220,14%,16%)', borderRadius: 8, color: '#fff', fontSize: 12 };
 const tk = { fill: 'hsl(215,15%,50%)', fontSize: 10 };
@@ -44,30 +50,65 @@ const defaultSteps = [
   'Reavaliação', 'Manutenção', 'Alta/Monitor.',
 ];
 
+const monthShort = (yyyymm: string) => {
+  const m = yyyymm.slice(5, 7);
+  const map: Record<string, string> = {
+    '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun',
+    '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez',
+  };
+  return map[m] || yyyymm;
+};
+
 export default function BI() {
+  const { data: patientsData, isLoading: lP } = usePatients();
+  const { data: journeysData, isLoading: lJ } = useJourneys();
+  const { data: appointmentsData, isLoading: lA } = useAppointments();
+  const { data: examsData } = useExams();
+  const { data: tasksData } = useTasks();
+  const { data: qrData } = useQuestionnaireResponses();
+  const { data: paramRecordsData } = useParameterRecords();
+  const { data: careLinesData, isLoading: lC } = useCareLines();
+
+  const patients = patientsData || [];
+  const journeys = journeysData || [];
+  const appointments = appointmentsData || [];
+  const exams = examsData || [];
+  const tasks = tasksData || [];
+  const qr = qrData || [];
+  const paramRecords = paramRecordsData || [];
+  const careLines = useMemo(() => (careLinesData || []).map(mapCareLine), [careLinesData]);
+
+  // Mapeia care_line_id (uuid) → slug (id de domínio)
+  const careLineIdToSlug = useMemo(() => {
+    const m = new Map<string, string>();
+    (careLinesData || []).forEach(c => m.set(c.id, c.slug));
+    return m;
+  }, [careLinesData]);
+
+  const isLoading = lP || lJ || lA || lC;
+
   // ─── OPERACIONAL ───
   const op = useMemo(() => {
     const stepCounts = defaultSteps.map((name, i) => ({
       name,
-      pacientes: mockJourneys.filter(j => j.currentStepIndex === i).length,
+      pacientes: journeys.filter(j => (j.current_step_index ?? 0) === i).length,
     }));
 
-    const pendConsultas = mockAppointments.filter(a => a.status === 'agendada').length;
-    const pendExames = mockExams.filter(e => ['solicitado', 'atrasado'].includes(e.status)).length;
-    const pendQuest = mockQuestionnaireResponses.filter(q => ['pendente', 'atrasado'].includes(q.status)).length;
-    const faltosos = mockAppointments.filter(a => a.status === 'faltou').length;
+    const pendConsultas = appointments.filter(a => a.status === 'agendada').length;
+    const pendExames = exams.filter(e => ['solicitado', 'atrasado'].includes(e.status)).length;
+    const pendQuest = qr.filter(q => ['pendente', 'atrasado'].includes(q.status)).length;
+    const faltosos = appointments.filter(a => a.status === 'faltou').length;
 
-    const avgSLA = Math.round(
-      mockPatients.reduce((s, p) => s + (p.diasSemRetorno || 0), 0) / mockPatients.length
-    );
+    const avgSLA = patients.length
+      ? Math.round(patients.reduce((s, p) => s + (p.dias_sem_retorno || 0), 0) / patients.length)
+      : 0;
 
-    // produtividade por profissional
     const profMap: Record<string, { consultas: number; tarefas: number }> = {};
-    mockAppointments.forEach(a => {
+    appointments.forEach(a => {
       if (!profMap[a.profissional]) profMap[a.profissional] = { consultas: 0, tarefas: 0 };
       profMap[a.profissional].consultas++;
     });
-    mockTasks.forEach(t => {
+    tasks.forEach(t => {
       if (!profMap[t.responsavel]) profMap[t.responsavel] = { consultas: 0, tarefas: 0 };
       profMap[t.responsavel].tarefas++;
     });
@@ -78,11 +119,12 @@ export default function BI() {
     }));
 
     return { stepCounts, pendConsultas, pendExames, pendQuest, faltosos, avgSLA, prodData };
-  }, []);
+  }, [journeys, appointments, exams, qr, tasks, patients]);
 
   // ─── CLÍNICO ───
   const clin = useMemo(() => {
-    const goalsAll = mockPatients.flatMap(p => p.goals);
+    const goalsAll: PatientGoal[] = patients.flatMap(p => parseGoals(p.goals));
+
     const goalsByField = (field: string) => {
       const g = goalsAll.filter(g => g.field === field);
       if (!g.length) return 0;
@@ -100,58 +142,43 @@ export default function BI() {
     const pctPA = goalsByField('pas');
     const pctLDL = goalsByField('ldl');
 
-    // peso: média de perda
     const pesoGoals = goalsAll.filter(g => g.field === 'peso');
     const avgPerdaPeso = pesoGoals.length
       ? (pesoGoals.reduce((s, g) => s + (g.currentValue - g.target), 0) / pesoGoals.length).toFixed(1)
       : '0';
 
-    // PHQ-9 médio
     const phq9Goals = goalsAll.filter(g => g.field === 'phq9');
     const avgPHQ9 = phq9Goals.length
       ? (phq9Goals.reduce((s, g) => s + g.currentValue, 0) / phq9Goals.length).toFixed(0)
       : '—';
 
-    // ACT médio
     const actGoals = goalsAll.filter(g => g.field === 'act');
     const avgACT = actGoals.length
       ? (actGoals.reduce((s, g) => s + g.currentValue, 0) / actGoals.length).toFixed(0)
       : '—';
 
-    const promsResp = mockQuestionnaireResponses.filter(q => q.status === 'respondido').length;
-    const promsTotal = mockQuestionnaireResponses.length;
+    const promsResp = qr.filter(q => q.status === 'respondido').length;
+    const promsTotal = qr.length;
 
-    // evolução HbA1c
-    const hba1cRecords = mockParameterRecords.filter(r => r.field === 'hba1c');
-    const dateMap = new Map<string, number[]>();
-    hba1cRecords.forEach(r => {
-      const q = r.date.slice(0, 7);
-      if (!dateMap.has(q)) dateMap.set(q, []);
-      dateMap.get(q)!.push(r.value);
-    });
-    const hba1cEvol = Array.from(dateMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, vals]) => ({
-        name: date.replace(/^\d{4}-/, '').replace('01', 'Jan').replace('04', 'Abr').replace('07', 'Jul').replace('10', 'Out'),
-        media: +(vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1),
-      }));
+    const buildEvol = (field: string) => {
+      const recs = paramRecords.filter(r => r.field === field);
+      const map = new Map<string, number[]>();
+      recs.forEach(r => {
+        const k = r.date.slice(0, 7);
+        if (!map.has(k)) map.set(k, []);
+        map.get(k)!.push(Number(r.value));
+      });
+      return Array.from(map.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, vals]) => ({
+          name: monthShort(date),
+          media: +(vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1),
+        }));
+    };
 
-    // evolução PHQ-9
-    const phq9Records = mockParameterRecords.filter(r => r.field === 'phq9');
-    const phq9Map = new Map<string, number[]>();
-    phq9Records.forEach(r => {
-      const q = r.date.slice(0, 7);
-      if (!phq9Map.has(q)) phq9Map.set(q, []);
-      phq9Map.get(q)!.push(r.value);
-    });
-    const phq9Evol = Array.from(phq9Map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, vals]) => ({
-        name: date.replace(/^\d{4}-/, '').replace('01', 'Jan').replace('04', 'Abr').replace('07', 'Jul').replace('10', 'Out'),
-        media: +(vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1),
-      }));
+    const hba1cEvol = buildEvol('hba1c');
+    const phq9Evol = buildEvol('phq9');
 
-    // % na meta por parâmetro
     const metaParams = [
       { name: 'HbA1c', pct: pctHba1c },
       { name: 'PA', pct: pctPA },
@@ -162,56 +189,46 @@ export default function BI() {
     ];
 
     return { pctHba1c, pctPA, pctLDL, avgPerdaPeso, avgPHQ9, avgACT, promsResp, promsTotal, hba1cEvol, phq9Evol, metaParams };
-  }, []);
+  }, [patients, qr, paramRecords]);
 
   // ─── EXECUTIVO ───
   const exec = useMemo(() => {
     const coortesAtivas = careLines.length;
     const linhasAtivas = careLines.map(cl => ({
       name: cl.name,
-      pacientes: mockPatients.filter(p => p.linhasAtivas.includes(cl.id)).length,
+      pacientes: patients.filter(p => (p.linhas_ativas || []).includes(cl.id)).length,
     })).sort((a, b) => b.pacientes - a.pacientes);
 
-    const totalJornadas = mockJourneys.length;
-    const concluidas = mockJourneys.filter(j => j.status === 'concluida').length;
+    const totalJornadas = journeys.length;
+    const concluidas = journeys.filter(j => j.status === 'concluida').length;
     const taxaConclusao = totalJornadas ? Math.round((concluidas / totalJornadas) * 100) : 0;
 
-    // distribuição de risco
     const riskDist = [
-      { name: 'Baixo', value: mockPatients.filter(p => p.riskLevel === 'baixo').length, fill: RISK_COLORS.baixo },
-      { name: 'Moderado', value: mockPatients.filter(p => p.riskLevel === 'moderado').length, fill: RISK_COLORS.moderado },
-      { name: 'Alto', value: mockPatients.filter(p => p.riskLevel === 'alto').length, fill: RISK_COLORS.alto },
-      { name: 'Crítico', value: mockPatients.filter(p => p.riskLevel === 'critico').length, fill: RISK_COLORS.critico },
+      { name: 'Baixo', value: patients.filter(p => p.risk_level === 'baixo').length, fill: RISK_COLORS.baixo },
+      { name: 'Moderado', value: patients.filter(p => p.risk_level === 'moderado').length, fill: RISK_COLORS.moderado },
+      { name: 'Alto', value: patients.filter(p => p.risk_level === 'alto').length, fill: RISK_COLORS.alto },
+      { name: 'Crítico', value: patients.filter(p => p.risk_level === 'critico').length, fill: RISK_COLORS.critico },
     ];
 
-    // gargalos: etapa com mais pendências
-    const stepPend: Record<string, number> = {};
-    mockJourneys.forEach(j => {
-      j.steps.forEach(s => {
-        if (s.status === 'atrasado' || s.pendencias.length > 0) {
-          stepPend[s.name] = (stepPend[s.name] || 0) + s.pendencias.length + (s.status === 'atrasado' ? 1 : 0);
-        }
-      });
-    });
-    const gargalo = Object.entries(stepPend).sort(([, a], [, b]) => b - a)[0];
+    // Gargalo: simplificado por enquanto (steps não estão disponíveis sem hook all-steps)
+    const gargalo: [string, number] | null = null;
 
-    // desempenho por unidade
-    const unidades = [...new Set(mockPatients.map(p => p.unidade))];
-    const unidadeData = unidades.map(u => {
-      const pts = mockPatients.filter(p => p.unidade === u);
+    const unidadesSet = new Set(patients.map(p => p.unidade).filter(Boolean) as string[]);
+    const unidadeData = Array.from(unidadesSet).map(u => {
+      const pts = patients.filter(p => p.unidade === u);
       return {
         name: u.replace('Ambulatório ', 'Amb. '),
         pacientes: pts.length,
-        riskMedio: Math.round(pts.reduce((s, p) => s + p.scoreRisco, 0) / pts.length),
+        riskMedio: pts.length ? Math.round(pts.reduce((s, p) => s + Number(p.score_risco || 0), 0) / pts.length) : 0,
       };
     });
 
-    // top 5 prioridades
-    const prioridades = [...mockPatients]
-      .sort((a, b) => b.scoreRisco - a.scoreRisco)
+    const prioridades = [...patients]
+      .sort((a, b) => Number(b.score_risco || 0) - Number(a.score_risco || 0))
       .slice(0, 5)
       .map(p => {
-        const offTarget = p.goals.filter(g => {
+        const goals = parseGoals(p.goals);
+        const offTarget = goals.filter(g => {
           if (g.operator === '<') return g.currentValue >= g.target;
           if (g.operator === '>') return g.currentValue <= g.target;
           if (g.operator === '>=') return g.currentValue < g.target;
@@ -220,17 +237,16 @@ export default function BI() {
         });
         return {
           nome: p.nome,
-          risco: p.riskLevel,
-          score: p.scoreRisco,
+          risco: p.risk_level || 'baixo',
+          score: Number(p.score_risco || 0),
           motivo: offTarget.length
             ? `${offTarget.length} meta(s) fora do alvo`
-            : p.diasSemRetorno && p.diasSemRetorno > 15
-              ? `${p.diasSemRetorno}d sem retorno`
+            : (p.dias_sem_retorno && p.dias_sem_retorno > 15)
+              ? `${p.dias_sem_retorno}d sem retorno`
               : 'Risco elevado',
         };
       });
 
-    // conclusão vs risco ao longo do tempo (simulado por trimestre)
     const trendData = [
       { name: 'Q1', conclusao: concluidas || 0, riscoMedio: 68 },
       { name: 'Q2', conclusao: Math.round(totalJornadas * 0.15), riscoMedio: 72 },
@@ -239,7 +255,19 @@ export default function BI() {
     ];
 
     return { coortesAtivas, linhasAtivas, taxaConclusao, riskDist, gargalo, unidadeData, prioridades, trendData };
-  }, []);
+  }, [careLines, patients, journeys]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+        </div>
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -265,8 +293,8 @@ export default function BI() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <KPICard title="SLA Médio Retorno" value={`${op.avgSLA}d`} icon={Clock} subtitle="dias sem retorno" />
-            <KPICard title="Jornadas Ativas" value={mockJourneys.filter(j => j.status === 'ativa').length} icon={TrendingUp} />
-            <KPICard title="Total Pacientes" value={mockPatients.length} icon={Users} />
+            <KPICard title="Jornadas Ativas" value={journeys.filter(j => j.status === 'ativa').length} icon={TrendingUp} />
+            <KPICard title="Total Pacientes" value={patients.length} icon={Users} />
           </div>
 
           <Card>
