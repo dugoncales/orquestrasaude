@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/data/types';
@@ -16,6 +16,9 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  roles: UserRole[];
+  activeRole: UserRole | null;
+  setActiveRole: (role: UserRole) => void;
   role: UserRole | null;
   patientId: string | null;
   loading: boolean;
@@ -31,17 +34,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const ROLE_PRIORITY: UserRole[] = ['admin', 'manager', 'professional', 'patient'];
+
+const storageKey = (userId: string) => `orquestra:activeRole:${userId}`;
+
+function pickDefaultRole(roles: UserRole[]): UserRole | null {
+  return ROLE_PRIORITY.find(r => roles.includes(r)) || null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [role, setRoleState] = useState<UserRole | null>(null);
+  const [roles, setRoles] = useState<UserRole[]>([]);
+  const [activeRole, setActiveRoleState] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Dev-only override (not persisted)
+  // Dev-only override (not persisted) — only used when ENABLE_ROLE_SWITCHER is true
+  // and the user wants to simulate a role they don't actually have.
   const [devRoleOverride, setDevRoleOverride] = useState<UserRole | null>(null);
 
-  const loadProfileAndRole = async (userId: string) => {
+  const loadProfileAndRoles = async (userId: string) => {
     const [{ data: profileRow }, { data: roleRows }] = await Promise.all([
       supabase.from('profiles').select('id, full_name, email, avatar, patient_id').eq('id', userId).maybeSingle(),
       supabase.from('user_roles').select('role').eq('user_id', userId),
@@ -49,11 +62,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setProfile(profileRow as Profile | null);
 
-    // Pick highest privilege role if multiple
-    const order: UserRole[] = ['admin', 'manager', 'professional', 'patient'];
-    const roles = (roleRows || []).map(r => r.role as UserRole);
-    const best = order.find(r => roles.includes(r)) || null;
-    setRoleState(best);
+    const userRoles = (roleRows || []).map(r => r.role as UserRole);
+    // Sort by priority for stable display order
+    const sortedRoles = ROLE_PRIORITY.filter(r => userRoles.includes(r));
+    setRoles(sortedRoles);
+
+    // Restore persisted active role if still valid; otherwise default to highest priority
+    let initial: UserRole | null = null;
+    try {
+      const stored = localStorage.getItem(storageKey(userId)) as UserRole | null;
+      if (stored && sortedRoles.includes(stored)) initial = stored;
+    } catch { /* ignore */ }
+
+    setActiveRoleState(initial || pickDefaultRole(sortedRoles));
   };
 
   useEffect(() => {
@@ -65,11 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newSession?.user) {
         // Defer async work to avoid deadlock with auth state
         setTimeout(() => {
-          loadProfileAndRole(newSession.user.id);
+          loadProfileAndRoles(newSession.user.id);
         }, 0);
       } else {
         setProfile(null);
-        setRoleState(null);
+        setRoles([]);
+        setActiveRoleState(null);
       }
     });
 
@@ -78,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       if (existingSession?.user) {
-        loadProfileAndRole(existingSession.user.id).finally(() => setLoading(false));
+        loadProfileAndRoles(existingSession.user.id).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -109,11 +131,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDevRoleOverride(null);
   };
 
-  const effectiveRole = (ENABLE_ROLE_SWITCHER && devRoleOverride) || role || 'professional';
+  const setActiveRole = useCallback((r: UserRole) => {
+    // Only allow switching to a role the user actually owns
+    if (!roles.includes(r)) {
+      // Dev override path: only when explicitly enabled
+      if (ENABLE_ROLE_SWITCHER) setDevRoleOverride(r);
+      return;
+    }
+    setDevRoleOverride(null);
+    setActiveRoleState(r);
+    if (user?.id) {
+      try { localStorage.setItem(storageKey(user.id), r); } catch { /* ignore */ }
+    }
+  }, [roles, user?.id]);
 
-  const setRole = (r: UserRole) => {
-    if (ENABLE_ROLE_SWITCHER) setDevRoleOverride(r);
-  };
+  const effectiveRole: UserRole =
+    (ENABLE_ROLE_SWITCHER && devRoleOverride) || activeRole || 'professional';
 
   const currentUser = {
     id: user?.id ?? 'anonymous',
@@ -129,6 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         session,
         profile,
+        roles,
+        activeRole: effectiveRole,
+        setActiveRole,
         role: effectiveRole,
         patientId: profile?.patient_id ?? null,
         loading,
@@ -137,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         currentRole: effectiveRole,
         currentUser,
-        setRole,
+        setRole: setActiveRole,
       }}
     >
       {children}
