@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'react-router-dom';
-import { Bell, ChevronDown, ChevronRight, LogOut, User as UserIcon } from 'lucide-react';
+import { Bell, Check, ChevronDown, ChevronRight, Eye, LogOut, User as UserIcon } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +34,7 @@ const routeLabels: Record<string, string> = {
 };
 
 export function AppHeader() {
-  const { currentUser, currentRole, setRole, signOut } = useAuth();
+  const { currentUser, currentRole, roles, setActiveRole, setRole, signOut } = useAuth();
   const location = useLocation();
   const { data: alerts } = useAlerts();
   const safeAlerts = alerts || [];
@@ -50,6 +50,8 @@ export function AppHeader() {
     await signOut();
     toast({ title: 'Sessão encerrada' });
   };
+
+  const hasMultipleRoles = roles.length >= 2;
 
   return (
     <header className="h-14 flex items-center justify-between border-b border-border bg-card/80 backdrop-blur-xl px-4">
@@ -67,7 +69,34 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-3">
-        {ENABLE_ROLE_SWITCHER && (
+        {hasMultipleRoles && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8">
+                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="hidden sm:inline text-muted-foreground">Visão:</span>
+                <span className="status-chip status-scheduled">{roleLabels[currentRole]}</span>
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Trocar visão</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {roles.map(r => (
+                <DropdownMenuItem
+                  key={r}
+                  onClick={() => setActiveRole(r)}
+                  className={r === currentRole ? 'bg-accent' : ''}
+                >
+                  <span className="flex-1">{roleLabels[r]}</span>
+                  {r === currentRole && <Check className="h-3.5 w-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {!hasMultipleRoles && ENABLE_ROLE_SWITCHER && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1 text-xs h-8">
@@ -87,7 +116,7 @@ export function AppHeader() {
           </DropdownMenu>
         )}
 
-        {!ENABLE_ROLE_SWITCHER && (
+        {!hasMultipleRoles && !ENABLE_ROLE_SWITCHER && (
           <Badge variant="secondary" className="text-[10px] h-6 hidden sm:inline-flex">
             {roleLabels[currentRole]}
           </Badge>
@@ -112,11 +141,24 @@ export function AppHeader() {
               <ChevronDown className="h-3 w-3 text-muted-foreground hidden md:inline" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
             <DropdownMenuLabel>
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-1">
                 <span className="text-sm font-semibold text-foreground">{currentUser.name}</span>
                 <span className="text-[11px] text-muted-foreground font-normal">{currentUser.email}</span>
+                {roles.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {roles.map(r => (
+                      <Badge
+                        key={r}
+                        variant={r === currentRole ? 'default' : 'secondary'}
+                        className="text-[9px] h-4 px-1.5 font-normal"
+                      >
+                        {roleLabels[r]}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
