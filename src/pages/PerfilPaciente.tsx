@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePatient } from '@/hooks/usePatients';
 import { useJourneys } from '@/hooks/useJourneys';
@@ -8,50 +9,152 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { useParameterRecords } from '@/hooks/useParameterRecords';
 import { useCareLines } from '@/hooks/useCareLines';
 import { parseGoals, riskLevel, mapCareLine } from '@/lib/db-helpers';
+import { formatSexo, formatDateBR, formatMonthYearBR, monthKey, getInitials } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { RiskSemaphore } from '@/components/shared/RiskSemaphore';
 import { GoalProgress, isOutOfTarget } from '@/components/shared/GoalProgress';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Activity, Pill, AlertTriangle, ArrowRight } from 'lucide-react';
+import {
+  ArrowLeft, Activity, Pill, ArrowRight,
+  Calendar, FlaskConical, CheckSquare, AlertTriangle,
+} from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
+
+type TimelineFilter = 'todos' | 'consultas' | 'exames' | 'tarefas' | 'alertas';
+type TimelineEventType = 'consulta' | 'exame' | 'tarefa' | 'alerta';
+type TimelineEvent = {
+  id: string;
+  date: string;
+  type: TimelineEventType;
+  label: string;
+  status: string;
+  meta?: string;
+};
+
+const typeIcon: Record<TimelineEventType, typeof Calendar> = {
+  consulta: Calendar,
+  exame: FlaskConical,
+  tarefa: CheckSquare,
+  alerta: AlertTriangle,
+};
+
+const typeAccent: Record<TimelineEventType, string> = {
+  consulta: 'bg-[hsl(var(--info))]/15 text-[hsl(var(--info))]',
+  exame: 'bg-[hsl(var(--status-pending))]/15 text-[hsl(var(--status-pending))]',
+  tarefa: 'bg-primary/15 text-primary',
+  alerta: 'bg-[hsl(var(--destructive))]/15 text-[hsl(var(--destructive))]',
+};
+
+const typeLabel: Record<TimelineEventType, string> = {
+  consulta: 'Consulta',
+  exame: 'Exame',
+  tarefa: 'Tarefa',
+  alerta: 'Alerta',
+};
 
 export default function PerfilPaciente() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: patient, isLoading: loadingPatient } = usePatient(id);
   const { data: journeysData } = useJourneys(id);
-  const { data: appointmentsData } = useAppointments();
-  const { data: examsData } = useExams();
-  const { data: tasksData } = useTasks();
+  const { data: appointmentsData } = useAppointments(id);
+  const { data: examsData } = useExams(id);
+  const { data: tasksData } = useTasks(id);
   const { data: alertsData } = useAlerts();
-  const { data: paramRecords } = useParameterRecords();
+  const { data: paramRecords } = useParameterRecords(id);
   const { data: careLinesData } = useCareLines();
 
-  if (loadingPatient) return <div className="space-y-4 p-4"><Skeleton className="h-20 w-full" /><Skeleton className="h-40 w-full" /></div>;
+  const [filter, setFilter] = useState<TimelineFilter>('todos');
+
+  const journeys = journeysData || [];
+  const appointments = appointmentsData || [];
+  const exams = examsData || [];
+  const tasks = tasksData || [];
+  const alerts = (alertsData || []).filter(a => a.patient_id === id);
+  const records = (paramRecords || []).filter(r => r.patient_id === id);
+  const careLines = useMemo(() => (careLinesData || []).map(mapCareLine), [careLinesData]);
+
+  const timelineEvents: TimelineEvent[] = useMemo(() => {
+    const evts: TimelineEvent[] = [
+      ...appointments.map(a => ({
+        id: `c-${a.id}`,
+        date: a.data,
+        type: 'consulta' as const,
+        label: a.tipo,
+        status: a.status,
+        meta: a.profissional,
+      })),
+      ...exams.map(e => ({
+        id: `e-${e.id}`,
+        date: e.data_solicitacao,
+        type: 'exame' as const,
+        label: e.tipo,
+        status: e.status,
+      })),
+      ...tasks.map(t => ({
+        id: `t-${t.id}`,
+        date: t.prazo,
+        type: 'tarefa' as const,
+        label: t.descricao,
+        status: t.status,
+        meta: t.responsavel,
+      })),
+      ...alerts.map(a => ({
+        id: `a-${a.id}`,
+        date: a.data,
+        type: 'alerta' as const,
+        label: a.mensagem,
+        status: a.severidade,
+      })),
+    ];
+    return evts.sort((a, b) => b.date.localeCompare(a.date));
+  }, [appointments, exams, tasks, alerts]);
+
+  const filteredEvents = useMemo(() => {
+    if (filter === 'todos') return timelineEvents;
+    const map: Record<TimelineFilter, TimelineEventType | null> = {
+      todos: null,
+      consultas: 'consulta',
+      exames: 'exame',
+      tarefas: 'tarefa',
+      alertas: 'alerta',
+    };
+    const t = map[filter];
+    return t ? timelineEvents.filter(e => e.type === t) : timelineEvents;
+  }, [timelineEvents, filter]);
+
+  const groupedEvents = useMemo(() => {
+    const groups = new Map<string, { label: string; items: TimelineEvent[] }>();
+    filteredEvents.forEach(e => {
+      const key = monthKey(e.date);
+      if (!groups.has(key)) groups.set(key, { label: formatMonthYearBR(e.date), items: [] });
+      groups.get(key)!.items.push(e);
+    });
+    return Array.from(groups.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [filteredEvents]);
+
+  if (loadingPatient) {
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
   if (!patient) return <div className="p-8 text-muted-foreground">Paciente não encontrado</div>;
 
   const goals = parseGoals(patient.goals);
   const risk = riskLevel(patient);
-  const careLines = (careLinesData || []).map(mapCareLine);
-  const journeys = (journeysData || []);
-  const appointments = (appointmentsData || []).filter(a => a.patient_id === id);
-  const exams = (examsData || []).filter(e => e.patient_id === id);
-  const alerts = (alertsData || []).filter(a => a.patient_id === id && !a.lido);
-  const records = (paramRecords || []).filter(r => r.patient_id === id);
   const activeLines = careLines.filter(l => (patient.linhas_ativas || []).includes(l.id));
-
-  const timelineEvents = [
-    ...appointments.map(a => ({ date: a.data, type: 'consulta' as const, label: `${a.tipo} — ${a.profissional}`, status: a.status })),
-    ...exams.map(e => ({ date: e.data_solicitacao, type: 'exame' as const, label: e.tipo, status: e.status })),
-  ].sort((a, b) => b.date.localeCompare(a.date));
 
   const hba1cData = records.filter(r => r.field === 'hba1c').map(r => ({ date: r.date.substring(5), value: Number(r.value) }));
   const hba1cGoal = goals.find(g => g.field === 'hba1c');
 
-  const initials = patient.nome.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const initials = getInitials(patient.nome);
 
   return (
     <div className="space-y-5">
@@ -67,9 +170,13 @@ export default function PerfilPaciente() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-foreground">{patient.nome}</h1>
-            <RiskSemaphore level={risk} score={patient.score_risco || 0} />
+            <RiskSemaphore level={risk} score={Number(patient.score_risco) || 0} />
           </div>
-          <p className="text-xs text-muted-foreground">{patient.sexo === 'F' ? 'Feminino' : 'Masculino'} · {patient.data_nascimento} · {patient.convenio} · {patient.unidade}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatSexo(patient.sexo)} · {formatDateBR(patient.data_nascimento)}
+            {patient.convenio ? ` · ${patient.convenio}` : ''}
+            {patient.unidade ? ` · ${patient.unidade}` : ''}
+          </p>
           <div className="flex gap-1 mt-2">
             {activeLines.map(l => (
               <span key={l.id} className="status-chip text-[10px]" style={{ background: l.color + '22', color: l.color }}>{l.name}</span>
@@ -181,32 +288,64 @@ export default function PerfilPaciente() {
         </Card>
       )}
 
-      {/* Timeline */}
+      {/* Timeline melhorada */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Timeline de Eventos</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-sm">Timeline de Eventos</CardTitle>
+            <Tabs value={filter} onValueChange={(v) => setFilter(v as TimelineFilter)}>
+              <TabsList className="h-8">
+                <TabsTrigger value="todos" className="text-xs h-6 px-2">Todos</TabsTrigger>
+                <TabsTrigger value="consultas" className="text-xs h-6 px-2">Consultas</TabsTrigger>
+                <TabsTrigger value="exames" className="text-xs h-6 px-2">Exames</TabsTrigger>
+                <TabsTrigger value="tarefas" className="text-xs h-6 px-2">Tarefas</TabsTrigger>
+                <TabsTrigger value="alertas" className="text-xs h-6 px-2">Alertas</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-0">
-            {timelineEvents.slice(0, 8).map((evt, i) => (
-              <div key={i} className="flex items-start gap-3 py-2.5 border-l-2 border-border pl-4 relative">
-                <div className={cn(
-                  'absolute -left-[6px] top-3.5 h-3 w-3 rounded-full border-2 border-background',
-                  evt.type === 'consulta' ? 'bg-[hsl(var(--info))]' : 'bg-[hsl(var(--status-pending))]'
-                )} />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {evt.type === 'consulta' ? 'Consulta' : 'Exame'}
-                    </span>
+          {filteredEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Nenhum evento neste filtro</p>
+          ) : (
+            <div className="max-h-[480px] overflow-y-auto pr-2 space-y-5">
+              {groupedEvents.map(([key, group]) => (
+                <div key={key}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sticky top-0 bg-card/95 backdrop-blur-sm py-1.5 mb-2 z-10">
+                    {group.label}
+                  </p>
+                  <div className="space-y-0">
+                    {group.items.map(evt => {
+                      const Icon = typeIcon[evt.type];
+                      return (
+                        <div key={evt.id} className="flex items-start gap-3 py-2.5 border-l-2 border-border pl-4 relative">
+                          <div className={cn(
+                            'absolute -left-[14px] top-2 h-7 w-7 rounded-full border-2 border-background flex items-center justify-center',
+                            typeAccent[evt.type]
+                          )}>
+                            <Icon className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="flex-1 ml-2 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {typeLabel[evt.type]}
+                              </span>
+                            </div>
+                            <p className="text-xs font-medium text-foreground">{evt.label}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {formatDateBR(evt.date)}
+                              {evt.meta ? ` · ${evt.meta}` : ''}
+                            </p>
+                          </div>
+                          <StatusChip status={evt.status} className="text-[9px] flex-shrink-0" />
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-xs font-medium text-foreground">{evt.label}</p>
-                  <p className="text-[10px] text-muted-foreground">{evt.date}</p>
                 </div>
-                <StatusChip status={evt.status} className="text-[9px]" />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
