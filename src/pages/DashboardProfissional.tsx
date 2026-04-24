@@ -15,10 +15,9 @@ import {
   Plus, FileText, HeartPulse, CheckCircle2
 } from 'lucide-react';
 import { usePatients } from '@/hooks/usePatients';
-import { useAppointments } from '@/hooks/useAppointments';
-import { useTasks } from '@/hooks/useTasks';
-import { useAlerts } from '@/hooks/useAlerts';
-import { useExams } from '@/hooks/useExams';
+import { useAppointments, useTodayAppointments } from '@/hooks/useAppointments';
+import { usePendingTasks } from '@/hooks/useTasks';
+import { useUnreadAlerts } from '@/hooks/useAlerts';
 import { useJourneys, useAllJourneySteps } from '@/hooks/useJourneys';
 import { useCareLines } from '@/hooks/useCareLines';
 import { parseGoals, riskLevel, mapCareLine } from '@/lib/db-helpers';
@@ -38,9 +37,10 @@ export default function DashboardProfissional() {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
   const { data: patientsData, isLoading } = usePatients();
-  const { data: appointmentsData } = useAppointments();
-  const { data: tasksData } = useTasks();
-  const { data: alertsData } = useAlerts();
+  const { data: todayApptsData } = useTodayAppointments();
+  const { data: allApptsData } = useAppointments();
+  const { data: pendingTasksData } = usePendingTasks();
+  const { data: unreadAlertsData } = useUnreadAlerts();
   const { data: journeysData } = useJourneys();
   const { data: allStepsData } = useAllJourneySteps();
   const { data: careLinesData } = useCareLines();
@@ -48,24 +48,23 @@ export default function DashboardProfissional() {
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
 
   const patients = patientsData || [];
-  const allAppointments = appointmentsData || [];
-  const allTasks = tasksData || [];
-  const allAlerts = alertsData || [];
+  const todayAppointments = todayApptsData || [];
+  const allAppointments = allApptsData || [];
+  const dayTasks = pendingTasksData || [];
+  const allAlerts = unreadAlertsData || [];
   const journeys = journeysData || [];
   const allSteps = allStepsData || [];
   const careLines = (careLinesData || []).map(mapCareLine);
 
-  const criticalAlerts = allAlerts.filter(a => !a.lido && a.severidade === 'critical');
-  const clinicalAlerts = allAlerts.filter(a => !a.lido && a.tipo === 'clinico');
-  const operationalAlerts = allAlerts.filter(a => !a.lido && a.tipo === 'operacional');
+  const criticalAlerts = allAlerts.filter(a => a.severidade === 'critical');
+  const clinicalAlerts = allAlerts.filter(a => a.tipo === 'clinico');
+  const operationalAlerts = allAlerts.filter(a => a.tipo === 'operacional');
 
   const patientsNeedAction = patients
     .filter(p => parseGoals(p.goals).some(g => isOutOfTarget(g)))
     .sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0))
     .slice(0, 6);
 
-  const todayAppointments = allAppointments.filter(a => a.status === 'agendada' || a.status === 'realizada');
-  const dayTasks = allTasks.filter(t => t.status === 'pendente' || t.status === 'atrasada' || t.status === 'em_andamento');
   const faltosos = allAppointments.filter(a => a.status === 'faltou');
 
   const toggleTask = (id: string) => {
