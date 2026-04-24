@@ -10,7 +10,7 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { useQuestionnaireResponses } from '@/hooks/useQuestionnaireResponses';
 import { useParameterRecords } from '@/hooks/useParameterRecords';
 import { useCareLines } from '@/hooks/useCareLines';
-import { parseGoals, riskLevel, mapCareLine, mapStep } from '@/lib/db-helpers';
+import { parseGoals, riskLevel, mapCareLine, mapStep, findCareLineByRef } from '@/lib/db-helpers';
 import { formatSexo } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -92,13 +92,12 @@ export default function JornadaClinica() {
 
   const goals = parseGoals(patient.goals);
   const risk = riskLevel(patient);
-  const clRow = (careLinesData || []).find(c => c.id === journey.care_line_id);
-  const line = clRow ? mapCareLine(clRow) : null;
+  const line = findCareLineByRef(careLines, journey.care_line_id) || null;
   const patientAlerts = alerts.filter(a => a.patient_id === effectivePatientId && !a.lido);
   const clinicalAlerts = patientAlerts.filter(a => a.tipo === 'clinico');
   const operationalAlerts = patientAlerts.filter(a => a.tipo === 'operacional');
   const goalsOutOfTarget = goals.filter(g => isOutOfTarget(g));
-  const lineGoals = goals.filter(g => g.careLineId === (clRow?.slug || journey.care_line_id));
+  const lineGoals = goals.filter(g => g.careLineId === (line?.slug || journey.care_line_id));
 
   const handlePatientChange = (pid: string) => {
     setSelectedPatientId(pid);
@@ -277,8 +276,7 @@ export default function JornadaClinica() {
           {patientJourneys.length > 1 && (
             <div className="flex flex-wrap gap-2 pt-1">
               {patientJourneys.map(j => {
-                const clr = (careLinesData || []).find(c => c.id === j.care_line_id);
-                const l = clr ? mapCareLine(clr) : null;
+                const l = findCareLineByRef(careLines, j.care_line_id) || null;
                 const pCount = getPendencyCount(j.id);
                 const isActive = j.id === effectiveJourneyId;
                 return (
