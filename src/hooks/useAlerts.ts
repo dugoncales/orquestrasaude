@@ -4,15 +4,23 @@ import type { Database } from '@/integrations/supabase/types';
 
 type AlertRow = Database['public']['Tables']['alerts']['Row'];
 
-export function useAlerts() {
+export function useAlerts(patientId?: string, unreadOnly?: boolean) {
   return useQuery({
-    queryKey: ['alerts'],
+    queryKey: ['alerts', patientId, unreadOnly],
     queryFn: async () => {
-      const { data, error } = await supabase.from('alerts').select('*').order('data', { ascending: false });
+      let q = supabase.from('alerts').select('*');
+      if (patientId) q = q.eq('patient_id', patientId);
+      if (unreadOnly) q = q.eq('lido', false);
+      const { data, error } = await q.order('data', { ascending: false });
       if (error) throw error;
       return data as AlertRow[];
     },
   });
+}
+
+/** Alertas não lidos. Filtro server-side. */
+export function useUnreadAlerts(patientId?: string) {
+  return useAlerts(patientId, true);
 }
 
 export function useMarkAlertRead() {

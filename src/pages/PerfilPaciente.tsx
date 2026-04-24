@@ -8,7 +8,7 @@ import { useTasks } from '@/hooks/useTasks';
 import { useAlerts } from '@/hooks/useAlerts';
 import { useParameterRecords } from '@/hooks/useParameterRecords';
 import { useCareLines } from '@/hooks/useCareLines';
-import { parseGoals, riskLevel, mapCareLine } from '@/lib/db-helpers';
+import { parseGoals, riskLevel, mapCareLine, findCareLineByRef } from '@/lib/db-helpers';
 import { formatSexo, formatDateBR, formatMonthYearBR, monthKey, getInitials } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -149,7 +149,7 @@ export default function PerfilPaciente() {
 
   const goals = parseGoals(patient.goals);
   const risk = riskLevel(patient);
-  const activeLines = careLines.filter(l => (patient.linhas_ativas || []).includes(l.id));
+  const activeLines = careLines.filter(l => (patient.linhas_ativas || []).includes(l.slug));
 
   const hba1cData = records.filter(r => r.field === 'hba1c').map(r => ({ date: r.date.substring(5), value: Number(r.value) }));
   const hba1cGoal = goals.find(g => g.field === 'hba1c');
@@ -190,9 +190,8 @@ export default function PerfilPaciente() {
         <p className="section-label">Situação por Linha de Cuidado</p>
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {journeys.map(j => {
-            const clRow = (careLinesData || []).find(c => c.id === j.care_line_id);
-            const line = clRow ? mapCareLine(clRow) : null;
-            const lineGoals = goals.filter(g => g.careLineId === (clRow?.slug || j.care_line_id));
+            const line = findCareLineByRef(careLines, j.care_line_id);
+            const lineGoals = goals.filter(g => g.careLineId === (line?.slug || j.care_line_id));
             const outGoals = lineGoals.filter(g => isOutOfTarget(g));
 
             return (

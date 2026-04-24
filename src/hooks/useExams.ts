@@ -18,6 +18,24 @@ export function useExams(patientId?: string) {
   });
 }
 
+/** Exames atrasados ou solicitados há mais de 30 dias. Filtro server-side. */
+export function useOverdueExams(patientId?: string) {
+  return useQuery({
+    queryKey: ['exams', 'overdue', patientId],
+    queryFn: async () => {
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+      let q = supabase
+        .from('exams')
+        .select('*, care_lines(slug, name)')
+        .or(`status.eq.atrasado,and(status.eq.solicitado,data_solicitacao.lt.${cutoff})`);
+      if (patientId) q = q.eq('patient_id', patientId);
+      const { data, error } = await q.order('data_solicitacao');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useCreateExam() {
   const qc = useQueryClient();
   return useMutation({

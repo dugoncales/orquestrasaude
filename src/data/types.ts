@@ -90,7 +90,10 @@ export interface CareLineAlerta {
 }
 
 export interface CareLine {
+  /** UUID interno (FK em journeys/appointments/etc). */
   id: string;
+  /** Slug estável usado em URLs, `linhas_ativas` e `PatientGoal.careLineId`. */
+  slug: string;
   name: string;
   icon: string;
   color: string;

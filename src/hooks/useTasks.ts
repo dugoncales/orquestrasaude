@@ -5,17 +5,23 @@ import type { Database } from '@/integrations/supabase/types';
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
 
-export function useTasks(patientId?: string) {
+export function useTasks(patientId?: string, status?: string[]) {
   return useQuery({
-    queryKey: ['tasks', patientId],
+    queryKey: ['tasks', patientId, status?.join(',')],
     queryFn: async () => {
       let q = supabase.from('tasks').select('*, care_lines(slug, name)');
       if (patientId) q = q.eq('patient_id', patientId);
+      if (status && status.length > 0) q = q.in('status', status);
       const { data, error } = await q.order('prazo');
       if (error) throw error;
       return data;
     },
   });
+}
+
+/** Tarefas pendentes (não concluídas/canceladas). Filtro server-side. */
+export function usePendingTasks(patientId?: string) {
+  return useTasks(patientId, ['pendente', 'em_andamento', 'atrasada']);
 }
 
 export function useCreateTask() {
