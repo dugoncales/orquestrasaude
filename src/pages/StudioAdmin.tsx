@@ -384,7 +384,7 @@ export default function StudioAdmin() {
                         <span className="text-sm font-semibold text-foreground">{rule.name}</span>
                         {rule.careLineId && (
                           <Badge variant="secondary" className="text-[9px]">
-                            {careLines.find(c => c.id === rule.careLineId)?.name || rule.careLineId}
+                            {careLines.find(c => c.id === rule.careLineId || c.slug === rule.careLineId)?.name || rule.careLineId}
                           </Badge>
                         )}
                       </div>

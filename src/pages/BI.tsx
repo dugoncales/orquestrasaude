@@ -196,7 +196,7 @@ export default function BI() {
     const coortesAtivas = careLines.length;
     const linhasAtivas = careLines.map(cl => ({
       name: cl.name,
-      pacientes: patients.filter(p => (p.linhas_ativas || []).includes(cl.id)).length,
+      pacientes: patients.filter(p => (p.linhas_ativas || []).includes(cl.slug)).length,
     })).sort((a, b) => b.pacientes - a.pacientes);
 
     const totalJornadas = journeys.length;

@@ -108,7 +108,7 @@ export default function DashboardPaciente() {
   const firstName = patient.nome.split(' ')[0];
   const goals = parseGoals(patient.goals);
   const linhasAtivas = patient.linhas_ativas || [];
-  const activeLines = careLines.filter(l => linhasAtivas.includes(l.id));
+  const activeLines = careLines.filter(l => linhasAtivas.includes(l.slug));
 
   const totalPending = appointments.length + exams.length + questionnaires.length;
 
@@ -119,10 +119,7 @@ export default function DashboardPaciente() {
   const nextStep = activeJourneySteps[currentStepIdx + 1];
 
   const activeLineMeta = activeJourney
-    ? careLines.find(l => {
-        const row = (careLinesData || []).find(c => c.id === activeJourney.care_line_id);
-        return row && l.id === row.slug;
-      })
+    ? careLines.find(l => l.id === activeJourney.care_line_id)
     : undefined;
 
   return (
@@ -179,8 +176,7 @@ export default function DashboardPaciente() {
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           {journeys.map(j => {
             const isActive = j.id === (activeJourney?.id);
-            const row = (careLinesData || []).find(c => c.id === j.care_line_id);
-            const meta = row ? mapCareLine(row) : null;
+            const meta = careLines.find(l => l.id === j.care_line_id);
             return (
               <button
                 key={j.id}

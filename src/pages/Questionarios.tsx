@@ -35,7 +35,7 @@ export default function Questionarios() {
   const pendentes = baseData.filter(q => q.status === 'pendente' || q.status === 'atrasado');
 
   const filteredAll = filterLine === 'all' ? baseData : baseData.filter(q => {
-    const cl = (careLinesData || []).find(c => c.id === q.care_line_id);
+    const cl = careLines.find(c => c.id === q.care_line_id);
     return cl?.slug === filterLine;
   });
   const filteredPending = filteredAll.filter(q => q.status === 'pendente' || q.status === 'atrasado');
@@ -61,7 +61,7 @@ export default function Questionarios() {
           <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Linha de cuidado" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as linhas</SelectItem>
-            {careLines.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+            {careLines.map(l => <SelectItem key={l.id} value={l.slug}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -72,15 +72,15 @@ export default function Questionarios() {
           <TabsTrigger value="pending">Pendentes</TabsTrigger>
           <TabsTrigger value="answered">Respondidos</TabsTrigger>
         </TabsList>
-        <TabsContent value="all"><QTable data={filteredAll} isPatient={isPatient} careLines={careLines} careLinesRaw={careLinesData || []} /></TabsContent>
-        <TabsContent value="pending"><QTable data={filteredPending} isPatient={isPatient} careLines={careLines} careLinesRaw={careLinesData || []} /></TabsContent>
-        <TabsContent value="answered"><QTable data={filteredAnswered} isPatient={isPatient} careLines={careLines} careLinesRaw={careLinesData || []} /></TabsContent>
+        <TabsContent value="all"><QTable data={filteredAll} isPatient={isPatient} careLines={careLines} /></TabsContent>
+        <TabsContent value="pending"><QTable data={filteredPending} isPatient={isPatient} careLines={careLines} /></TabsContent>
+        <TabsContent value="answered"><QTable data={filteredAnswered} isPatient={isPatient} careLines={careLines} /></TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function QTable({ data, isPatient, careLines, careLinesRaw }: { data: any[]; isPatient: boolean; careLines: any[]; careLinesRaw: any[] }) {
+function QTable({ data, isPatient, careLines }: { data: any[]; isPatient: boolean; careLines: any[] }) {
   return (
     <div className="rounded-xl border border-border overflow-hidden mt-4">
       <Table className="table-premium">
@@ -95,8 +95,7 @@ function QTable({ data, isPatient, careLines, careLinesRaw }: { data: any[]; isP
         </TableHeader>
         <TableBody>
           {data.map(q => {
-            const clRaw = careLinesRaw.find(c => c.id === q.care_line_id);
-            const line = clRaw ? careLines.find(l => l.id === clRaw.slug) : undefined;
+            const line = careLines.find(l => l.id === q.care_line_id);
             const pct = (q.max_score || 0) > 0 ? ((q.score || 0) / q.max_score) * 100 : 0;
 
             return (
