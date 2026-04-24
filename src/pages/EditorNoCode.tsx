@@ -35,8 +35,9 @@ const defaultSteps = [
 ];
 
 function createEmptyLine(): CareLine {
+  const now = Date.now();
   return {
-    id: `linha_${Date.now()}`, name: 'Nova Linha de Cuidado', icon: 'Activity',
+    id: `linha_${now}`, slug: `linha-${now}`, name: 'Nova Linha de Cuidado', icon: 'Activity',
     color: 'hsl(200, 80%, 50%)', clinicalParameters: [], proms: [], prems: [],
     patientCount: 0, avgAdherence: 0, criteriosInclusao: [], criteriosSaida: [],
     metas: [], tarefasPadrao: [], examesPadrao: [], automacoes: [], alertas: [], indicadoresBI: [],

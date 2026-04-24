@@ -3,7 +3,7 @@ import { isOutOfTarget } from './GoalProgress';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useCareLines } from '@/hooks/useCareLines';
-import { mapCareLine, parseGoals, mapStep } from '@/lib/db-helpers';
+import { mapCareLine, parseGoals, findCareLineByRef } from '@/lib/db-helpers';
 
 interface MultiLineOverviewProps {
   patient: { goals: unknown; };
@@ -23,11 +23,11 @@ export function MultiLineOverview({ patient, journeys, steps, activeJourneyId, o
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Linhas Ativas</p>
       <div className="space-y-1.5">
         {journeys.map(j => {
-          const line = careLines.find(l => l.id === j.care_line_id) || (careLinesData || []).find(c => c.id === j.care_line_id);
-          const lineName = line ? ('name' in line ? line.name : '') : '';
-          const lineColor = line ? ('color' in line ? line.color : '') : '';
-          const lineSlug = line ? ('slug' in line ? (line as any).slug : ('id' in line ? line.id : '')) : '';
-          
+          const line = findCareLineByRef(careLines, j.care_line_id);
+          const lineName = line?.name || '';
+          const lineColor = line?.color || '';
+          const lineSlug = line?.slug || j.care_line_id;
+
           const journeySteps = steps.filter(s => s.journey_id === j.id).sort((a, b) => a.step_order - b.step_order);
           const currentIdx = j.current_step_index ?? 0;
           const currentStep = journeySteps[currentIdx];

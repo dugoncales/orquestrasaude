@@ -53,3 +53,13 @@ export function mapCareLine(row: CareLineRow): CareLine {
 export function riskLevel(p: PatientRow): RiskLevel {
   return (p.risk_level || 'baixo') as RiskLevel;
 }
+
+/**
+ * Encontra uma CareLine por id (uuid) OU slug. Útil porque o banco mistura
+ * referências: `journeys.care_line_id` é uuid, `patients.linhas_ativas` e
+ * `PatientGoal.careLineId` são slugs.
+ */
+export function findCareLineByRef(careLines: CareLine[], ref: string | null | undefined): CareLine | undefined {
+  if (!ref) return undefined;
+  return careLines.find(c => c.id === ref || c.slug === ref);
+}
