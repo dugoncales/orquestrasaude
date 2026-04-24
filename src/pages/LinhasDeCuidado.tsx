@@ -125,7 +125,7 @@ export default function LinhasDeCuidado() {
             <div className="space-y-1">
               {careLines.map(l => (
                 <label key={l.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-secondary/50 cursor-pointer text-xs">
-                  <Checkbox checked={selectedLineFilters.includes(l.id)} onCheckedChange={() => toggleLineFilter(l.id)} />
+                  <Checkbox checked={selectedLineFilters.includes(l.slug)} onCheckedChange={() => toggleLineFilter(l.slug)} />
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ background: l.color }} />
                   {l.name}
                 </label>
@@ -188,7 +188,7 @@ export default function LinhasDeCuidado() {
                   if (g.operator === '>') return g.currentValue <= g.target;
                   return g.currentValue !== g.target;
                 });
-                const patientCareLines = careLines.filter(l => (p.linhas_ativas || []).includes(l.id));
+                const patientCareLines = careLines.filter(l => (p.linhas_ativas || []).includes(l.slug));
                 return (
                   <Card key={p.id} className="hover:border-primary/30 transition-colors">
                     <CardContent className="p-4">
@@ -246,7 +246,7 @@ export default function LinhasDeCuidado() {
 function CareLineDetail({ line, patients, careLines, onBack }: { line: CareLine; patients: any[]; careLines: CareLine[]; onBack: () => void }) {
   const Icon = iconMap[line.icon] || Activity;
   const paramLabels = (fields: string[]) => fields.map(f => parameterDictionary.find(p => p.field === f)?.label || f);
-  const linePatients = patients.filter(p => (p.linhas_ativas || []).includes(line.id)).sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0));
+  const linePatients = patients.filter(p => (p.linhas_ativas || []).includes(line.slug)).sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0));
 
   return (
     <div className="space-y-5">
@@ -464,7 +464,7 @@ function CareLineDetail({ line, patients, careLines, onBack }: { line: CareLine;
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           {(p.linhas_ativas || []).map((la: string) => {
-                            const cl = careLines.find(c => c.id === la);
+                            const cl = careLines.find(c => c.slug === la);
                             return cl ? (
                               <span key={la} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: cl.color + '22', color: cl.color }}>{cl.name}</span>
                             ) : null;
@@ -506,7 +506,7 @@ function IntegratedView({ patients, careLines, selectedPatientId, selectedPatien
   onSelectPatient: (id: string) => void;
 }) {
   const patientLines = selectedPatient
-    ? careLines.filter(l => (selectedPatient.linhas_ativas || []).includes(l.id))
+    ? careLines.filter(l => (selectedPatient.linhas_ativas || []).includes(l.slug))
     : [];
   const pGoals = selectedPatient ? parseGoals(selectedPatient.goals) : [];
 
@@ -635,7 +635,7 @@ function IntegratedView({ patients, careLines, selectedPatientId, selectedPatien
               </TableRow></TableHeader>
               <TableBody>{pGoals.map((g, i) => {
                 const onTarget = g.operator === '<' ? g.currentValue < g.target : g.operator === '>' ? g.currentValue > g.target : g.currentValue === g.target;
-                const lineName = careLines.find(l => l.id === g.careLineId)?.name || g.careLineId;
+                const lineName = careLines.find(l => l.slug === g.careLineId || l.id === g.careLineId)?.name || g.careLineId;
                 return (
                   <TableRow key={i}>
                     <TableCell className="text-xs font-medium">{g.label}</TableCell>
