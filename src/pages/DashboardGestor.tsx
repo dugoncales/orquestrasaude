@@ -270,7 +270,7 @@ export default function DashboardGestor() {
                       <div className="flex gap-1 justify-end mt-0.5">
                         {(p.linhas_ativas || []).slice(0, 2).map((l: string) => (
                           <span key={l} className="text-[9px] bg-secondary text-muted-foreground rounded px-1.5 py-0.5">
-                            {careLines.find(cl => cl.id === l)?.name?.split(' ')[0]}
+                            {careLines.find(cl => cl.slug === l)?.name?.split(' ')[0]}
                           </span>
                         ))}
                       </div>
