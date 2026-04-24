@@ -29,7 +29,8 @@ export function mapStep(s: JourneyStepRow): JourneyStep {
 
 export function mapCareLine(row: CareLineRow): CareLine {
   return {
-    id: row.slug,
+    id: row.id,
+    slug: row.slug,
     name: row.name,
     icon: row.icon || 'Activity',
     color: row.color || 'hsl(200,80%,50%)',
