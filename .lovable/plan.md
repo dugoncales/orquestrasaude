@@ -1,88 +1,88 @@
 
 
-# Plano: Sprint 3 — Eliminar mocks restantes + UX clínica
+# Plano: Sprint 4 — Hooks otimizados, `id` vs `slug`, jornada mais leve
 
-Zerar dependência de `mock-*` em telas de produção, criar helpers de formatação e melhorar timeline do paciente. Após este sprint, os arquivos mock são deletados.
-
----
-
-## 1. Helpers de formatação (novo)
-
-`src/lib/format.ts`:
-- `formatSexo(s)` → `'Feminino' | 'Masculino' | 'Outro' | 'Não informado'`
-- `formatDateBR(d)` → `dd/MM/yyyy`
-- `formatDateTimeBR(d)` → `dd/MM/yyyy HH:mm`
-- `getInitials(name)` → iniciais para avatar
-
-Aplicar em `PerfilPaciente.tsx`, `JornadaClinica.tsx`, `DashboardPaciente.tsx`.
+Reduzir over-fetch movendo filtros para o servidor e corrigir a ambiguidade entre `id` (uuid) e `slug` em `care_lines`. Sem mudanças de schema neste sprint.
 
 ---
 
-## 2. Hook `useOrientacoes` — adicionar filtro por paciente
+## 1. `mapCareLine` e tipo `CareLine` — expor `id` E `slug`
 
-`src/hooks/useOrientacoes.ts`: aceitar `useOrientacoes(patientId?)` com filtro server-side opcional.
-
----
-
-## 3. `DashboardPaciente.tsx` — refator total
-
-Hoje importa `mockAppointments`, `mockExams`, `mockQuestionnaireResponses`, `mockJourneys`, `mockOrientacoes`, `mockPatients` e `careLines` estático, com `patientId = 'p1'` hardcoded.
+Hoje `mapCareLine` retorna `{ id: row.slug, ... }` — usa o slug como id. Isso causa bugs sutis: outras tabelas referenciam `care_line_id` por **uuid** (`row.id`), não por slug. Hoje as comparações funcionam por coincidência só onde dados de seed estão consistentes.
 
 Mudanças:
-- `patientId` vem de `useAuth().profile.patient_id`.
-- Hooks reais: `usePatient(patientId)`, `useJourneys(patientId)`, `useAllJourneySteps`, `useAppointments(patientId)`, `useExams(patientId)`, `useQuestionnaireResponses(patientId)`, `useOrientacoes(patientId)`, `useCareLines`.
-- Steps filtrados por `journey_id`; `currentStepIndex` vem da journey.
-- Goals via `parseGoals(patient.goals)`.
-- Estado vazio acolhedor quando `!patientId`: card centralizado "Seu acesso ainda não está vinculado a um prontuário. Procure sua equipe para vincular seu cadastro."
-- Loading skeletons enquanto queries carregam.
+- `src/data/types.ts`: `CareLine` ganha `slug: string` (já tem `id: string`).
+- `src/lib/db-helpers.ts`: `mapCareLine` retorna `{ id: row.id, slug: row.slug, ... }`.
+- Auditar todos os usos de `careLine.id` para decidir se deveriam ser `careLine.slug` (URLs/lookup) ou `careLine.id` (joins).
+- Manter um helper `findCareLineByRef(careLines, ref)` que aceita id OU slug, para suavizar transição.
+
+Páginas a auditar:
+- `LinhasDeCuidado.tsx`, `JornadaClinica.tsx`, `BI.tsx`, `DashboardPaciente.tsx`, `DashboardGestor.tsx`, `DashboardProfissional.tsx`, `Pacientes.tsx`, `EditorNoCode.tsx`, `Questionarios.tsx`.
 
 ---
 
-## 4. `BI.tsx` — refator total
+## 2. Hooks com filtros server-side opcionais
 
-Hoje importa `mockPatients`, `mockJourneys`, `mockAppointments`, `mockTasks`, `mockExams`, `mockParameterRecords` e `careLines`.
+Adicionar parâmetro `patientId?` (e outros filtros relevantes) a hooks que hoje sempre buscam tudo:
 
-Mudanças:
-- Substituir todos os imports mock por hooks: `usePatients`, `useJourneys`, `useAppointments`, `useTasks`, `useExams`, `useParameterRecords`, `useCareLines`.
-- Adaptar cálculos para `snake_case` (`risk_level`, `care_line_id`, `data_solicitacao` etc.).
-- Usar `mapCareLine` para normalizar care lines.
-- Manter `parameterDictionary` (configuração estática, não é mock).
-- Loading state quando `isLoading` em qualquer hook chave.
+| Hook | Assinatura nova |
+|---|---|
+| `useExams` | `useExams(patientId?: string)` |
+| `useTasks` | `useTasks(patientId?: string, status?: TaskStatus[])` |
+| `useParameterRecords` | `useParameterRecords(patientId?: string, field?: string)` |
+| `useQuestionnaireResponses` | `useQuestionnaireResponses(patientId?: string)` |
+| `useJourneys` | `useJourneys(patientId?: string)` |
+| `useAppointments` | já aceita `patientId?` — manter |
+| `useAlerts` | `useAlerts(patientId?: string, unreadOnly?: boolean)` |
+| `useOrientacoes` | já aceita `patientId?` — manter |
 
----
-
-## 5. Timeline melhorada (`PerfilPaciente.tsx`)
-
-Hoje: lista plana de 8 eventos, sem filtro nem agrupamento.
-
-Mudanças:
-- Tabs de filtro por tipo: `Todos | Consultas | Exames | Tarefas | Alertas`.
-- Container `max-h-[480px] overflow-y-auto` para scroll interno.
-- Agrupamento visual por mês (label "Abril 2026", "Março 2026" etc.).
-- Ícone por tipo (Calendar/FlaskConical/CheckSquare/AlertTriangle) com cor por status.
-- Aplicar `formatDateBR` consistentemente.
-- Aplicar `formatSexo` no header do paciente.
+Implementação: `query.eq('patient_id', patientId)` quando definido. `queryKey` inclui os filtros para invalidation correto.
 
 ---
 
-## 6. Cleanup final
+## 3. Hooks especializados
 
-Deletar:
-- `src/data/mock-data.ts`
-- `src/data/mock-patients.ts`
-- `src/data/care-lines.ts`
+Novos hooks puros (sem filtros no cliente) para cenários comuns:
 
-Manter:
-- `src/data/types.ts` (tipos de domínio)
-- `src/data/parameters.ts` (dicionário clínico, configuração)
+- `useTodayAppointments()` em `src/hooks/useAppointments.ts`:
+  - `WHERE data = today ORDER BY hora`.
+- `usePendingTasks(patientId?)` em `useTasks.ts`:
+  - `WHERE status IN ('pendente','em_andamento','atrasada')`.
+- `useOverdueExams(patientId?)` em `useExams.ts`:
+  - `WHERE status = 'atrasado' OR (status = 'solicitado' AND data_solicitacao < today - interval '30 days')`.
+- `useUnreadAlerts(patientId?)` em `useAlerts.ts`:
+  - `WHERE lido = false`.
+- `useJourney(id)` em `useJourneys.ts`:
+  - busca uma jornada com `journey_steps` via subquery (duas queries em paralelo, retornar combinado).
 
-Verificar com busca global que nenhum import remanescente quebra o build antes de deletar.
+Mutations:
+- `useUpdateJourney()` — atualiza `current_step_index`, `status`.
+- `useAdvanceJourneyStep(journeyId)` — marca step atual como concluído e incrementa index.
 
 ---
 
-## 7. Seed: profile demo vinculado a paciente real
+## 4. Refator das páginas para usar hooks especializados
 
-Migration de seed: vincular o `profiles` do usuário `dugoncales@gmail.com` ao primeiro paciente do banco (`patient_id = (SELECT id FROM patients ORDER BY created_at LIMIT 1)`), só se ainda for `NULL`. Permite testar a visão `patient` imediatamente após o login.
+Substituir filtros `.filter(...)` no cliente por chamadas a hooks com filtros já aplicados. Ganho de performance + menos código.
+
+Páginas:
+- `JornadaClinica.tsx`: usar `useAppointments(effectivePatientId)`, `useExams(effectivePatientId)`, `useTasks(effectivePatientId)`, `useParameterRecords(effectivePatientId)` em vez de buscar tudo e filtrar.
+- `DashboardProfissional.tsx`: `useTodayAppointments()`, `usePendingTasks()`, `useOverdueExams()`, `useUnreadAlerts()`.
+- `DashboardGestor.tsx`: idem onde aplicável (manter `usePatients()` global, é o ponto da tela).
+- `DashboardPaciente.tsx`: já passa `patientId` — só garantir que todos os hooks usem o filtro server-side.
+- `PerfilPaciente.tsx`: usar todos os hooks com `patientId` server-side; remove `.filter(p => p.id === patientId)` no cliente.
+- `BI.tsx`: mantém busca global (é o ponto da tela), sem mudança.
+
+---
+
+## 5. Sem mudanças de schema neste sprint
+
+Confirmado:
+- Sem migrations
+- Sem novas tabelas
+- Sem mudanças em RLS
+
+Sprint 5 cuida disso (RLS por role, audit, anexos).
 
 ---
 
@@ -90,19 +90,27 @@ Migration de seed: vincular o `profiles` do usuário `dugoncales@gmail.com` ao p
 
 | Arquivo | Mudança |
 |---|---|
-| `src/lib/format.ts` | **novo** — helpers `formatSexo`, `formatDateBR`, etc. |
-| `src/hooks/useOrientacoes.ts` | aceitar `patientId?` opcional |
-| `src/pages/DashboardPaciente.tsx` | refator total, zero mocks |
-| `src/pages/BI.tsx` | refator total, zero mocks |
-| `src/pages/PerfilPaciente.tsx` | timeline com tabs/scroll/agrupamento + formatadores |
-| `src/pages/JornadaClinica.tsx` | aplicar `formatSexo` / `formatDateBR` |
-| `supabase/migrations/...sql` | seed: vincular profile demo ao primeiro paciente |
-| **deletar** `src/data/mock-data.ts` | — |
-| **deletar** `src/data/mock-patients.ts` | — |
-| **deletar** `src/data/care-lines.ts` | — |
+| `src/data/types.ts` | `CareLine` ganha `slug` |
+| `src/lib/db-helpers.ts` | `mapCareLine` expõe `id` e `slug`; helper `findCareLineByRef` |
+| `src/hooks/useExams.ts` | aceita `patientId?`; novo `useOverdueExams` |
+| `src/hooks/useTasks.ts` | aceita `patientId?, status?`; novo `usePendingTasks` |
+| `src/hooks/useParameterRecords.ts` | aceita `patientId?, field?` |
+| `src/hooks/useQuestionnaireResponses.ts` | aceita `patientId?` |
+| `src/hooks/useJourneys.ts` | aceita `patientId?`; novos `useJourney`, `useUpdateJourney`, `useAdvanceJourneyStep` |
+| `src/hooks/useAppointments.ts` | novo `useTodayAppointments` |
+| `src/hooks/useAlerts.ts` | aceita `patientId?, unreadOnly?`; novo `useUnreadAlerts` |
+| `src/pages/JornadaClinica.tsx` | usar hooks filtrados |
+| `src/pages/DashboardProfissional.tsx` | usar hooks especializados |
+| `src/pages/DashboardPaciente.tsx` | confirmar uso server-side |
+| `src/pages/PerfilPaciente.tsx` | usar hooks filtrados; remover filtros cliente |
+| `src/pages/LinhasDeCuidado.tsx` + outras | auditar `careLine.id` vs `careLine.slug` |
 
-## Fora de escopo (próximos sprints)
+## Fora de escopo (Sprint 5)
 
-- Sprint 4: hooks especializados (`useTodayAppointments`, etc.) e `id` vs `slug` em `mapCareLine`
-- Sprint 5: RLS por role, audit logs, anexos, `professionals` + `patient_assignments`
+- RLS por role (substituir policies "anon = tudo")
+- `professionals` + `patient_assignments`
+- `audit_logs` + triggers
+- `attachments` + bucket Storage
+- `questionnaire_templates` + `questionnaire_items`
+- Índices de performance
 
