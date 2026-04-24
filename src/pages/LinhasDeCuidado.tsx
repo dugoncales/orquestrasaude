@@ -65,7 +65,7 @@ export default function LinhasDeCuidado() {
 
   const filteredLines = useMemo(() => {
     if (selectedLineFilters.length === 0) return careLines;
-    return careLines.filter(l => selectedLineFilters.includes(l.id));
+    return careLines.filter(l => selectedLineFilters.includes(l.slug));
   }, [selectedLineFilters, careLines]);
 
   const priorityPatients = useMemo(() => {
