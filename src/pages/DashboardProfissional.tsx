@@ -101,7 +101,7 @@ export default function DashboardProfissional() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KPICard title="Precisam de Ação" value={patientsNeedAction.length} icon={Activity} subtitle="fora da meta" accentColor="destructive" />
           <KPICard title="Consultas Hoje" value={todayAppointments.length} icon={Calendar} subtitle="agendadas" accentColor="info" />
-          <KPICard title="Tarefas do Dia" value={dayTasks.length} icon={ListChecks} subtitle={`${allTasks.filter(t => t.status === 'atrasada').length} atrasadas`} accentColor="warning" />
+          <KPICard title="Tarefas do Dia" value={dayTasks.length} icon={ListChecks} subtitle={`${dayTasks.filter(t => t.status === 'atrasada').length} atrasadas`} accentColor="warning" />
           <KPICard title="Faltosos" value={faltosos.length} icon={Clock} subtitle="busca ativa" accentColor="destructive" />
         </div>
       </div>
