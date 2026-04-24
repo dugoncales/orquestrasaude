@@ -239,7 +239,7 @@ export default function DashboardProfissional() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mb-1">
-                        Etapa: {currentStepName} · {(p.linhas_ativas || []).map((l: string) => careLines.find(cl => cl.id === l)?.name?.split(' ')[0]).filter(Boolean).join(', ')}
+                        Etapa: {currentStepName} · {(p.linhas_ativas || []).map((l: string) => careLines.find(cl => cl.slug === l)?.name?.split(' ')[0]).filter(Boolean).join(', ')}
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {outGoals.map(g => (

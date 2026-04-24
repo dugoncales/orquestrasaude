@@ -119,7 +119,7 @@ export default function Pacientes() {
                   <TableCell>
                     <div className="flex gap-1 flex-wrap">
                       {(p.linhas_ativas || []).map(l => {
-                        const line = careLines.find(cl => cl.id === l);
+                        const line = careLines.find(cl => cl.slug === l);
                         return (
                           <span key={l} className="status-chip text-[10px]" style={{ background: line ? line.color + '22' : undefined, color: line?.color }}>
                             {line?.name.split(' ')[0] || l}
