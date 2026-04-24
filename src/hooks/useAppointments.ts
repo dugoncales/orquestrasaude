@@ -18,6 +18,23 @@ export function useAppointments(patientId?: string) {
   });
 }
 
+/** Agendamentos do dia atual, ordenados por hora. Filtro server-side. */
+export function useTodayAppointments() {
+  return useQuery({
+    queryKey: ['appointments', 'today'],
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, care_lines(slug, name)')
+        .eq('data', today)
+        .order('hora');
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useCreateAppointment() {
   const qc = useQueryClient();
   return useMutation({

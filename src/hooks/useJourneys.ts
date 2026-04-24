@@ -18,6 +18,32 @@ export function useJourneys(patientId?: string) {
   });
 }
 
+/** Busca uma única jornada com seus steps em paralelo. */
+export function useJourney(id: string | undefined) {
+  return useQuery({
+    queryKey: ['journey', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const [journeyRes, stepsRes] = await Promise.all([
+        supabase
+          .from('journeys')
+          .select('*, care_lines(slug, name, icon, color), patients(nome)')
+          .eq('id', id)
+          .single(),
+        supabase
+          .from('journey_steps')
+          .select('*')
+          .eq('journey_id', id)
+          .order('step_order'),
+      ]);
+      if (journeyRes.error) throw journeyRes.error;
+      if (stepsRes.error) throw stepsRes.error;
+      return { journey: journeyRes.data, steps: stepsRes.data as JourneyStepRow[] };
+    },
+    enabled: !!id,
+  });
+}
+
 export function useJourneySteps(journeyId: string | undefined) {
   return useQuery({
     queryKey: ['journey_steps', journeyId],
@@ -55,5 +81,56 @@ export function useUpdateJourneyStep() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['journey_steps'] }),
+  });
+}
+
+/** Atualiza campos de uma jornada (current_step_index, status). */
+export function useUpdateJourney() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<JourneyRow> & { id: string }) => {
+      const { data, error } = await supabase.from('journeys').update(updates).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['journeys'] });
+      qc.invalidateQueries({ queryKey: ['journey'] });
+    },
+  });
+}
+
+/**
+ * Marca o step atual como concluído e incrementa current_step_index.
+ * Espera o id da jornada e o step atual completo (para saber qual marcar).
+ */
+export function useAdvanceJourneyStep() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ journeyId, currentStepId, currentIndex }: { journeyId: string; currentStepId: string; currentIndex: number }) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const [stepRes, jRes] = await Promise.all([
+        supabase
+          .from('journey_steps')
+          .update({ status: 'concluido', data_conclusao: today })
+          .eq('id', currentStepId)
+          .select()
+          .single(),
+        supabase
+          .from('journeys')
+          .update({ current_step_index: currentIndex + 1 })
+          .eq('id', journeyId)
+          .select()
+          .single(),
+      ]);
+      if (stepRes.error) throw stepRes.error;
+      if (jRes.error) throw jRes.error;
+      return { step: stepRes.data, journey: jRes.data };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['journeys'] });
+      qc.invalidateQueries({ queryKey: ['journey'] });
+      qc.invalidateQueries({ queryKey: ['journey_steps'] });
+    },
   });
 }
