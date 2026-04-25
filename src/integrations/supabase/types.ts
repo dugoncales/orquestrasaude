@@ -498,6 +498,45 @@ export type Database = {
           },
         ]
       }
+      patient_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          papel: string
+          patient_id: string
+          professional_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          papel?: string
+          patient_id: string
+          professional_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          papel?: string
+          patient_id?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_assignments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_assignments_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           alergias: string[] | null
@@ -603,6 +642,42 @@ export type Database = {
           telefone?: string | null
           unidade?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      professionals: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          especialidade: string | null
+          id: string
+          nome: string
+          registro: string | null
+          unidade: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          especialidade?: string | null
+          id?: string
+          nome: string
+          registro?: string | null
+          unidade?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          especialidade?: string | null
+          id?: string
+          nome?: string
+          registro?: string | null
+          unidade?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -842,6 +917,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_patient: {
+        Args: { _patient_id: string; _user_id: string }
+        Returns: boolean
+      }
+      current_patient_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
