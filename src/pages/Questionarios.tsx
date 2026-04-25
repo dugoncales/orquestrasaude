@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuestionnaireResponses } from '@/hooks/useQuestionnaireResponses';
+import { useQuestionnaireItemCounts } from '@/hooks/useQuestionnaireItems';
 import { useCareLines } from '@/hooks/useCareLines';
 import { usePatients } from '@/hooks/usePatients';
 import { StatusChip } from '@/components/shared/StatusChip';
@@ -26,8 +27,10 @@ export default function Questionarios() {
   const patientId = isPatient ? (patients?.[0]?.id || undefined) : undefined;
   const { data: responses, isLoading } = useQuestionnaireResponses(patientId);
   const { data: careLinesData } = useCareLines();
+  const { data: itemCounts } = useQuestionnaireItemCounts();
   const careLines = (careLinesData || []).map(mapCareLine);
   const baseData = responses || [];
+  const totalItems = Object.values(itemCounts || {}).reduce((s, n) => s + n, 0);
 
   const [filterLine, setFilterLine] = useState('all');
 

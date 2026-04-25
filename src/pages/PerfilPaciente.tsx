@@ -19,8 +19,9 @@ import { GoalProgress, isOutOfTarget } from '@/components/shared/GoalProgress';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft, Activity, Pill, ArrowRight,
-  Calendar, FlaskConical, CheckSquare, AlertTriangle,
+  Calendar, FlaskConical, CheckSquare, AlertTriangle, Paperclip,
 } from 'lucide-react';
+import { AttachmentList } from '@/components/shared/AttachmentList';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
 
@@ -345,6 +346,18 @@ export default function PerfilPaciente() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Anexos */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Paperclip className="h-4 w-4 text-primary" /> Anexos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AttachmentList patientId={patient.id} compact />
         </CardContent>
       </Card>
     </div>

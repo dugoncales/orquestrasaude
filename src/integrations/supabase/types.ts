@@ -131,6 +131,92 @@ export type Database = {
           },
         ]
       }
+      attachments: {
+        Row: {
+          category: string | null
+          created_at: string
+          filename: string
+          id: string
+          mime_type: string | null
+          patient_id: string
+          related_exam_id: string | null
+          related_journey_step_id: string | null
+          size_bytes: number | null
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          filename: string
+          id?: string
+          mime_type?: string | null
+          patient_id: string
+          related_exam_id?: string | null
+          related_journey_step_id?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          filename?: string
+          id?: string
+          mime_type?: string | null
+          patient_id?: string
+          related_exam_id?: string | null
+          related_journey_step_id?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       automation_rules: {
         Row: {
           actions: string[] | null
@@ -498,6 +584,45 @@ export type Database = {
           },
         ]
       }
+      patient_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          papel: string
+          patient_id: string
+          professional_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          papel?: string
+          patient_id: string
+          professional_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          papel?: string
+          patient_id?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_assignments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_assignments_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           alergias: string[] | null
@@ -606,6 +731,42 @@ export type Database = {
         }
         Relationships: []
       }
+      professionals: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          especialidade: string | null
+          id: string
+          nome: string
+          registro: string | null
+          unidade: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          especialidade?: string | null
+          id?: string
+          nome: string
+          registro?: string | null
+          unidade?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          especialidade?: string | null
+          id?: string
+          nome?: string
+          registro?: string | null
+          unidade?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar: string | null
@@ -644,6 +805,47 @@ export type Database = {
           },
         ]
       }
+      questionnaire_items: {
+        Row: {
+          created_at: string
+          id: string
+          opcoes: Json | null
+          ordem: number
+          pergunta: string
+          peso: number | null
+          questionnaire_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opcoes?: Json | null
+          ordem: number
+          pergunta: string
+          peso?: number | null
+          questionnaire_id: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opcoes?: Json | null
+          ordem?: number
+          pergunta?: string
+          peso?: number | null
+          questionnaire_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questionnaire_items_questionnaire_id_fkey"
+            columns: ["questionnaire_id"]
+            isOneToOne: false
+            referencedRelation: "questionnaires"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       questionnaire_responses: {
         Row: {
           care_line_id: string | null
@@ -654,6 +856,7 @@ export type Database = {
           patient_id: string
           patient_name: string
           questionnaire_id: string
+          respostas: Json | null
           score: number | null
           status: string
           updated_at: string
@@ -667,6 +870,7 @@ export type Database = {
           patient_id: string
           patient_name: string
           questionnaire_id: string
+          respostas?: Json | null
           score?: number | null
           status?: string
           updated_at?: string
@@ -680,6 +884,7 @@ export type Database = {
           patient_id?: string
           patient_name?: string
           questionnaire_id?: string
+          respostas?: Json | null
           score?: number | null
           status?: string
           updated_at?: string
@@ -842,6 +1047,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_patient: {
+        Args: { _patient_id: string; _user_id: string }
+        Returns: boolean
+      }
+      current_patient_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
