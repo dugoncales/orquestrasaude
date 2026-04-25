@@ -805,6 +805,47 @@ export type Database = {
           },
         ]
       }
+      questionnaire_items: {
+        Row: {
+          created_at: string
+          id: string
+          opcoes: Json | null
+          ordem: number
+          pergunta: string
+          peso: number | null
+          questionnaire_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opcoes?: Json | null
+          ordem: number
+          pergunta: string
+          peso?: number | null
+          questionnaire_id: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opcoes?: Json | null
+          ordem?: number
+          pergunta?: string
+          peso?: number | null
+          questionnaire_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questionnaire_items_questionnaire_id_fkey"
+            columns: ["questionnaire_id"]
+            isOneToOne: false
+            referencedRelation: "questionnaires"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       questionnaire_responses: {
         Row: {
           care_line_id: string | null
@@ -815,6 +856,7 @@ export type Database = {
           patient_id: string
           patient_name: string
           questionnaire_id: string
+          respostas: Json | null
           score: number | null
           status: string
           updated_at: string
@@ -828,6 +870,7 @@ export type Database = {
           patient_id: string
           patient_name: string
           questionnaire_id: string
+          respostas?: Json | null
           score?: number | null
           status?: string
           updated_at?: string
@@ -841,6 +884,7 @@ export type Database = {
           patient_id?: string
           patient_name?: string
           questionnaire_id?: string
+          respostas?: Json | null
           score?: number | null
           status?: string
           updated_at?: string
