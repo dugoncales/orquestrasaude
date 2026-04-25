@@ -131,6 +131,56 @@ export type Database = {
           },
         ]
       }
+      attachments: {
+        Row: {
+          category: string | null
+          created_at: string
+          filename: string
+          id: string
+          mime_type: string | null
+          patient_id: string
+          related_exam_id: string | null
+          related_journey_step_id: string | null
+          size_bytes: number | null
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          filename: string
+          id?: string
+          mime_type?: string | null
+          patient_id: string
+          related_exam_id?: string | null
+          related_journey_step_id?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          filename?: string
+          id?: string
+          mime_type?: string | null
+          patient_id?: string
+          related_exam_id?: string | null
+          related_journey_step_id?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
