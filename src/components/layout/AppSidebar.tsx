@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, Route, GitBranch, Calendar, FlaskConical,
-  ClipboardList, BarChart3, Brain, Blocks, Shield
+  ClipboardList, BarChart3, Brain, Blocks, Shield, ScrollText
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -42,12 +42,14 @@ const menuByRole: Record<string, NavItem[]> = {
     { title: 'Linhas de Cuidado', url: '/linhas-de-cuidado', icon: GitBranch, group: 'core' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
     { title: 'IA de Planilhas', url: '/ia', icon: Brain, group: 'analysis' },
+    { title: 'Auditoria', url: '/auditoria', icon: ScrollText, group: 'admin' },
   ],
   admin: [
     { title: 'Studio', url: '/', icon: Shield, group: 'admin' },
     { title: 'Pacientes', url: '/pacientes', icon: Users, group: 'core' },
     { title: 'Linhas de Cuidado', url: '/linhas-de-cuidado', icon: GitBranch, group: 'core' },
     { title: 'Editor No-Code', url: '/editor', icon: Blocks, group: 'admin' },
+    { title: 'Auditoria', url: '/auditoria', icon: ScrollText, group: 'admin' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
   ],
 };
