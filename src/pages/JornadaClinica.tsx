@@ -23,10 +23,11 @@ import { ActionPanel } from '@/components/shared/ActionPanel';
 import { JourneyProgressBar } from '@/components/shared/JourneyProgressBar';
 import { MultiLineOverview } from '@/components/shared/MultiLineOverview';
 import { AlertBanner } from '@/components/shared/AlertBanner';
+import { AttachmentList } from '@/components/shared/AttachmentList';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Check, Clock, AlertTriangle, Lock, Circle, MapPin, TrendingUp, TrendingDown,
-  Activity, CalendarDays, ShieldAlert, Zap
+  Activity, CalendarDays, ShieldAlert, Zap, Paperclip
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -439,6 +440,22 @@ export default function JornadaClinica() {
                   <p className="text-[9px] text-muted-foreground">Etapas concluídas</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs flex items-center gap-2">
+                <Paperclip className="h-3.5 w-3.5 text-primary" />
+                Anexos — {activeStep.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AttachmentList
+                patientId={patient.id}
+                relatedJourneyStepId={activeStep.id}
+                compact
+              />
             </CardContent>
           </Card>
         </div>
