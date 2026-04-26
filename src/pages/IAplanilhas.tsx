@@ -12,18 +12,21 @@ import {
   BarChart3, Users, Activity, ShieldAlert, Clock, Search
 } from 'lucide-react';
 import { StatusChip } from '@/components/shared/StatusChip';
+import { ClinicalExtractionStep } from '@/components/shared/ClinicalExtractionStep';
 import {
   mapColumns, validateData, analyzePatient, analyzeCohort,
   type ColumnMapping, type ValidationResult, type PatientInsight, type CohortInsight
 } from '@/lib/clinical-analysis';
 import * as XLSX from 'xlsx';
 
-const STEPS = ['Upload', 'Mapeamento', 'Validação', 'Insights'] as const;
+const STEPS = ['Upload', 'Mapeamento', 'Validação', 'Insights', 'Extração IA'] as const;
 const MAPPED_FIELD_OPTIONS = [
   'nome', 'cpf', 'data_nascimento', 'hba1c', 'glicemia', 'pas', 'pad', 'imc', 'peso', 'altura',
   'ldl', 'hdl', 'colesterol_total', 'triglicerides', 'creatinina', 'phq9', 'gad7', 'act',
   'ultima_consulta', 'proxima_consulta', 'linha_cuidado', 'telefone', 'email', 'sexo',
   'medicamentos', 'faltas', 'albuminuria',
+  // Campos texto livre — habilitam etapa de extração via IA
+  'anotacoes', 'evolucao', 'observacoes', 'resumo_consulta', 'resultado_exame',
 ];
 
 export default function IAplanilhas() {
