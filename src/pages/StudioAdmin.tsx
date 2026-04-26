@@ -15,6 +15,7 @@ import {
   Heart, Scale, Droplets, Brain, Wind
 } from 'lucide-react';
 import { StatusChip } from '@/components/shared/StatusChip';
+import { TeamManagement } from '@/components/admin/TeamManagement';
 import { useCareLines } from '@/hooks/useCareLines';
 import { useAutomationRules } from '@/hooks/useAutomationRules';
 import { mapCareLine } from '@/lib/db-helpers';
@@ -121,6 +122,7 @@ export default function StudioAdmin() {
         <ScrollArea className="w-full">
           <TabsList className="w-max">
             <TabsTrigger value="users">Usuários</TabsTrigger>
+            <TabsTrigger value="team">Equipe</TabsTrigger>
             <TabsTrigger value="permissions">Permissões</TabsTrigger>
             <TabsTrigger value="carelines">Linhas de Cuidado</TabsTrigger>
             <TabsTrigger value="steps">Etapas</TabsTrigger>
@@ -169,6 +171,10 @@ export default function StudioAdmin() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        <TabsContent value="team" className="mt-4">
+          <TeamManagement />
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-4">
