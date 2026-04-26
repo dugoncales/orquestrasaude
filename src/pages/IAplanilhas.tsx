@@ -12,18 +12,21 @@ import {
   BarChart3, Users, Activity, ShieldAlert, Clock, Search
 } from 'lucide-react';
 import { StatusChip } from '@/components/shared/StatusChip';
+import { ClinicalExtractionStep } from '@/components/shared/ClinicalExtractionStep';
 import {
   mapColumns, validateData, analyzePatient, analyzeCohort,
   type ColumnMapping, type ValidationResult, type PatientInsight, type CohortInsight
 } from '@/lib/clinical-analysis';
 import * as XLSX from 'xlsx';
 
-const STEPS = ['Upload', 'Mapeamento', 'Validação', 'Insights'] as const;
+const STEPS = ['Upload', 'Mapeamento', 'Validação', 'Insights', 'Extração IA'] as const;
 const MAPPED_FIELD_OPTIONS = [
   'nome', 'cpf', 'data_nascimento', 'hba1c', 'glicemia', 'pas', 'pad', 'imc', 'peso', 'altura',
   'ldl', 'hdl', 'colesterol_total', 'triglicerides', 'creatinina', 'phq9', 'gad7', 'act',
   'ultima_consulta', 'proxima_consulta', 'linha_cuidado', 'telefone', 'email', 'sexo',
   'medicamentos', 'faltas', 'albuminuria',
+  // Campos texto livre — habilitam etapa de extração via IA
+  'anotacoes', 'evolucao', 'observacoes', 'resumo_consulta', 'resultado_exame',
 ];
 
 export default function IAplanilhas() {
@@ -330,12 +333,45 @@ export default function IAplanilhas() {
 
       {/* Step 3: Insights */}
       {step === 3 && cohort && (
-        <Tabs defaultValue="paciente">
-          <TabsList>
-            <TabsTrigger value="paciente" className="gap-1.5"><Users className="h-3 w-3" /> Por Paciente</TabsTrigger>
-            <TabsTrigger value="coorte" className="gap-1.5"><BarChart3 className="h-3 w-3" /> Por Coorte</TabsTrigger>
-            <TabsTrigger value="qualidade" className="gap-1.5"><ShieldAlert className="h-3 w-3" /> Qualidade</TabsTrigger>
-          </TabsList>
+        <div className="space-y-4">
+          {/* Banner: aprofundar com IA */}
+          {(() => {
+            const hasTextCols = mapping.some((m) => m.mapped && ['anotacoes','evolucao','observacoes','resumo_consulta','resultado_exame'].includes(m.mapped));
+            const hasLongCols = headers.some((h) => {
+              const sample = rows.slice(0, 30);
+              const lens = sample.map((r) => r[h] != null ? String(r[h]).length : 0).filter((l) => l > 0);
+              if (!lens.length) return false;
+              return lens.reduce((a,b)=>a+b,0) / lens.length >= 120;
+            });
+            if (!hasTextCols && !hasLongCols) return null;
+            return (
+              <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
+                <CardContent className="p-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                      <Brain className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Aprofundar análise com IA</p>
+                      <p className="text-xs text-muted-foreground">
+                        Detectamos colunas com texto clínico livre. Extraia parâmetros, highlights e red flags automaticamente.
+                      </p>
+                    </div>
+                  </div>
+                  <Button onClick={() => setStep(4)} className="gap-2">
+                    Extrair com IA <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          <Tabs defaultValue="paciente">
+            <TabsList>
+              <TabsTrigger value="paciente" className="gap-1.5"><Users className="h-3 w-3" /> Por Paciente</TabsTrigger>
+              <TabsTrigger value="coorte" className="gap-1.5"><BarChart3 className="h-3 w-3" /> Por Coorte</TabsTrigger>
+              <TabsTrigger value="qualidade" className="gap-1.5"><ShieldAlert className="h-3 w-3" /> Qualidade</TabsTrigger>
+            </TabsList>
 
           {/* Patient insights */}
           <TabsContent value="paciente" className="space-y-3 mt-4">
@@ -640,6 +676,12 @@ export default function IAplanilhas() {
             )}
           </TabsContent>
         </Tabs>
+        </div>
+      )}
+
+      {/* Step 4: Extração via IA */}
+      {step === 4 && (
+        <ClinicalExtractionStep rows={rows} mapping={mapping} headers={headers} />
       )}
     </div>
   );

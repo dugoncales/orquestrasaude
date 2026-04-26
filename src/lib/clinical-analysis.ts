@@ -76,7 +76,38 @@ const KNOWN_FIELDS: Record<string, string[]> = {
   medicamentos: ['medicamentos', 'medications', 'meds', 'remedios'],
   faltas: ['faltas', 'absences', 'no_show', 'faltou'],
   albuminuria: ['albuminuria', 'albumina_urinaria', 'rac'],
+  // Campos de texto livre — usados pela extração via IA
+  anotacoes: ['anotacoes', 'anotações', 'notas', 'notes', 'observacao_clinica', 'observação_clinica'],
+  evolucao: ['evolucao', 'evolução', 'progresso', 'soap', 'historia', 'história'],
+  observacoes: ['observacoes', 'observações', 'obs', 'remarks'],
+  resumo_consulta: ['resumo', 'resumo_consulta', 'sumario', 'sumário', 'sumario_consulta'],
+  resultado_exame: ['resultado', 'laudo', 'result', 'descricao_exame', 'descrição_laudo', 'descricao_laudo', 'laudos'],
 };
+
+/** Campos do mapeamento que contêm texto clínico livre processável pela IA. */
+export const FREE_TEXT_FIELDS = ['anotacoes', 'evolucao', 'observacoes', 'resumo_consulta', 'resultado_exame'] as const;
+
+/** Resposta estruturada da edge function clinical-extract. */
+export interface ClinicalExtraction {
+  summary: string;
+  highlights: Array<{
+    text: string;
+    category: 'exame' | 'sintoma' | 'evento_adverso' | 'medicacao' | 'queixa' | 'outro';
+    severity: 'critico' | 'alto' | 'moderado' | 'baixo';
+  }>;
+  extractedParams: Array<{
+    field: string;
+    fieldOther?: string;
+    value: string;
+    unit?: string;
+    date?: string;
+    source: string;
+    confidence: 'alta' | 'media' | 'baixa';
+  }>;
+  redFlags: string[];
+  suggestedNextSteps: string[];
+  notes: string[];
+}
 
 const CLINICAL_RANGES: Record<string, { min: number; max: number }> = {
   hba1c: { min: 3, max: 20 },
