@@ -541,6 +541,39 @@ export function ClinicalExtractionStep({ rows, mapping, headers, fileName }: Pro
         </Card>
       )}
 
+      {/* Toolbar de vínculo / aplicação em massa */}
+      {sortedResults.some((r) => r.data) && (
+        <Card className="bg-muted/20">
+          <CardContent className="p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-xs flex-wrap">
+              <Badge className="bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border-0">
+                <Link2 className="h-3 w-3 mr-1" /> {linkStats.linked} vinculado{linkStats.linked === 1 ? '' : 's'}
+              </Badge>
+              <Badge variant="outline" className="text-muted-foreground">
+                <Link2Off className="h-3 w-3 mr-1" /> {linkStats.noMatch} sem match
+              </Badge>
+              <Badge variant="outline" className="text-muted-foreground">
+                {linkStats.noCpf} sem CPF
+              </Badge>
+              {linkStats.savedApplied > 0 && (
+                <Badge className="bg-primary/15 text-primary border-0">
+                  <CheckCheck className="h-3 w-3 mr-1" /> {linkStats.savedApplied} aplicado{linkStats.savedApplied === 1 ? '' : 's'}
+                </Badge>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={saveAndApplyAllLinked}
+              disabled={bulkRunning || linkStats.linked === linkStats.savedApplied}
+              className="gap-2"
+            >
+              {bulkRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar e aplicar todos ({Math.max(0, linkStats.linked - linkStats.savedApplied)})
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Resultados */}
       {sortedResults.length > 0 && (
         <div className="space-y-2">
