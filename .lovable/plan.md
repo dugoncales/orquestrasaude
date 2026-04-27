@@ -1,232 +1,248 @@
 
-# Plano: Aprimorar IAplanilhas — extração inteligente de texto clínico livre
+# Plano: Persistir extrações IA e linkar com paciente cadastrado
 
-Hoje a tela `IAplanilhas` só consegue analisar dados quando estão em **colunas estruturadas** (uma coluna por parâmetro: `hba1c`, `pas`, `phq9`, etc.). Funciona bem pra planilhas operacionais limpas, mas falha quando o dado clínico está **misturado dentro de uma coluna de texto** — o caso real de "Anotações", "Evolução", "Observações", "Resumo da consulta", "Resultado do exame".
+Hoje a extração da `IAplanilhas` (etapa 5) roda só em memória. Cada upload morre quando a aba fecha. Esse sprint **transforma os resultados em ações reais no sistema**: cruza com pacientes cadastrados pelo CPF, salva tudo no banco com referência ao paciente, e gera automaticamente:
 
-Esse sprint adiciona uma **camada de extração via Lovable AI** que lê esses campos texto e produz, por paciente:
-- Parâmetros clínicos extraídos (HbA1c, PA, IMC, escores) com valor + data + fonte (qual coluna/linha)
-- Resumo executivo do estado clínico (3-5 linhas)
-- Highlights — os 3-5 fatos mais relevantes (resultado de exame fora da meta, sintoma novo, evento adverso, queixa importante)
-- Bandeiras vermelhas (red flags clínicas)
-- Próximos passos sugeridos baseados no que foi extraído
+- **Alertas** para cada red flag encontrada
+- **Orientações** para cada "próximo passo sugerido"
+- **Registros de parâmetro** para cada valor extraído com `confidence: 'alta'`
+
+Resultado: o profissional faz upload da planilha → IA extrai → ele revisa → 1 clique e aquilo vira pendência real na Jornada Clínica do paciente certo.
 
 ## Decisões de produto
 
 | Tema | Escolha |
 |---|---|
-| Modelo | `google/gemini-3-flash-preview` (default — rápido + barato, multimodal). Permite override pra `gemini-2.5-pro` em "modo profundo". |
-| Quando rodar IA | **Etapa 4 nova** ("Extração IA"), opcional, após a Etapa 3 (Insights baseados em colunas). Usuário decide se ativa. |
-| Quais colunas processar | Auto-detecção de colunas com texto longo (>120 chars médios) + override manual com checkboxes. Default: marca colunas mapeadas como `anotacoes`, `evolucao`, `observacoes`, `resultado`, `resumo`. |
-| Limite de linhas por execução | 50 pacientes/batch (configurável). Pra planilhas maiores: barra de progresso, 1 paciente por chamada, com retry e backoff. |
-| Custo / rate limit | Surface em toast: 402 = sem créditos; 429 = throttling. Botão "Pausar/Retomar". |
-| Persistência | Resultado fica em memória (estado React). Sem salvar no backend nesta sprint — mantém escopo. |
+| Match paciente | Por **CPF normalizado** (só dígitos). Sem CPF → fica como "não vinculado" mas ainda é salvo. |
+| Quem pode salvar | Profissional só salva extrações de pacientes que ele acessa (RLS via `can_access_patient`). Admin/manager veem tudo. |
+| Quando salvar | Não-automático. Após extração, usuário escolhe "Salvar todos" ou marca paciente por paciente e clica "Salvar selecionados". Permite revisar antes de virar alerta real. |
+| O que gera automaticamente | Red flag → `alerts` (severidade `critical`) · Próximo passo → `orientacoes` · Param `confidence:'alta'` → `parameter_records` · Highlight crítico → `alerts` (severidade `warning`). |
+| Highlights moderados/baixos | Ficam guardados no JSON da extração mas não viram alerta. |
+| Reprocessamento | Se o mesmo CPF já tem extração no upload, marca como "atualização" — nova entrada com `replaces_id` apontando pra anterior. Não apaga histórico. |
 
-## 1. Schema de campo novo no mapeamento
+## 1. Migrations (3)
 
-`MAPPED_FIELD_OPTIONS` ganha:
-- `anotacoes` — texto livre clínico
-- `evolucao` — evolução SOAP / progresso
-- `observacoes` — observações gerais
-- `resumo_consulta` — resumo de consulta
-- `resultado_exame` — laudo / resultado de exame em texto
+### 1.1 Tabela `clinical_extractions`
+Guarda o resultado bruto da IA por linha de planilha + match com paciente.
 
-Em `KNOWN_FIELDS` (`src/lib/clinical-analysis.ts`), padrões pra auto-mapeamento:
+```sql
+CREATE TABLE public.clinical_extractions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id uuid,                          -- nullable (sem match)
+  cpf_raw text,                             -- como veio na planilha
+  cpf_normalized text,                      -- só dígitos, índice
+  patient_name_source text NOT NULL,        -- nome como veio na planilha
+  source_filename text,
+  source_row_index integer,                 -- 0-based, pra rastrear
+
+  summary text,
+  highlights jsonb DEFAULT '[]'::jsonb,
+  extracted_params jsonb DEFAULT '[]'::jsonb,
+  red_flags text[] DEFAULT '{}',
+  suggested_next_steps text[] DEFAULT '{}',
+  notes text[] DEFAULT '{}',
+
+  model text,                               -- ex: google/gemini-3-flash-preview
+  confidence_overall text,                  -- alta/media/baixa (média dos params)
+
+  applied boolean NOT NULL DEFAULT false,   -- true = gerou alerts/orientacoes
+  applied_at timestamptz,
+  applied_by uuid,                          -- user_id
+
+  replaces_id uuid REFERENCES public.clinical_extractions(id) ON DELETE SET NULL,
+  created_by uuid,                          -- user_id que rodou a extração
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_clinical_extractions_patient ON public.clinical_extractions(patient_id) WHERE patient_id IS NOT NULL;
+CREATE INDEX idx_clinical_extractions_cpf ON public.clinical_extractions(cpf_normalized) WHERE cpf_normalized IS NOT NULL;
+CREATE INDEX idx_clinical_extractions_created ON public.clinical_extractions(created_at DESC);
+
+ALTER TABLE public.clinical_extractions ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: admin/manager veem tudo; professional vê o que ele criou OU de paciente que acessa
+CREATE POLICY "Extractions select" ON public.clinical_extractions
+  FOR SELECT TO authenticated
+  USING (
+    has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager')
+    OR created_by = auth.uid()
+    OR (patient_id IS NOT NULL AND can_access_patient(auth.uid(), patient_id))
+  );
+
+-- INSERT: qualquer authenticated com role profissional+; obriga created_by = auth.uid()
+CREATE POLICY "Extractions insert" ON public.clinical_extractions
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    created_by = auth.uid()
+    AND (has_role(auth.uid(),'admin') OR has_role(auth.uid(),'manager') OR has_role(auth.uid(),'professional'))
+  );
+
+-- UPDATE: admin/manager OU criador OU quem acessa o paciente (pra marcar applied)
+CREATE POLICY "Extractions update" ON public.clinical_extractions
+  FOR UPDATE TO authenticated
+  USING (
+    has_role(auth.uid(),'admin') OR has_role(auth.uid(),'manager')
+    OR created_by = auth.uid()
+    OR (patient_id IS NOT NULL AND can_access_patient(auth.uid(), patient_id))
+  );
+
+-- DELETE: admin
+CREATE POLICY "Extractions delete" ON public.clinical_extractions
+  FOR DELETE TO authenticated USING (has_role(auth.uid(),'admin'));
+```
+
+### 1.2 Função `find_patient_by_cpf`
+Centraliza match (e respeita RLS).
+
+```sql
+CREATE OR REPLACE FUNCTION public.find_patient_by_cpf(_cpf text)
+RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT id FROM public.patients
+  WHERE regexp_replace(cpf, '\D', '', 'g') = regexp_replace(_cpf, '\D', '', 'g')
+  LIMIT 1
+$$;
+```
+
+### 1.3 Audit trigger
+Adiciona `clinical_extractions` ao `audit_trigger`.
+
+```sql
+CREATE TRIGGER audit_clinical_extractions
+AFTER INSERT OR UPDATE OR DELETE ON public.clinical_extractions
+FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+```
+
+## 2. Edge Function nova: `apply-extraction`
+
+`supabase/functions/apply-extraction/index.ts`
+
+Recebe um `extraction_id`. Faz tudo server-side com SERVICE_ROLE pra garantir consistência (transação lógica), mas valida primeiro que o usuário **pode** acessar o paciente:
+
 ```ts
-anotacoes: ['anotacoes', 'anotações', 'notas', 'notes', 'observacao_clinica'],
-evolucao: ['evolucao', 'evolução', 'progresso', 'soap', 'historia'],
-observacoes: ['observacoes', 'observações', 'obs', 'remarks'],
-resumo_consulta: ['resumo', 'resumo_consulta', 'sumario', 'sumário'],
-resultado_exame: ['resultado', 'laudo', 'result', 'descricao_exame', 'descrição_laudo'],
+// Pseudocódigo
+1. Valida JWT (verify_jwt = false + validação manual via SUPABASE_JWKS).
+2. Carrega extraction (com client autenticado do user → respeita RLS).
+3. Se extraction.applied = true → 409.
+4. Se extraction.patient_id IS NULL → 400 "vincule um paciente primeiro".
+5. Verifica can_access_patient(user, patient_id) via .rpc.
+6. Para cada red_flag: insert em alerts (tipo='clinico', severidade='critical', mensagem, patient_id, data=hoje).
+7. Para cada highlight com severity='critico' que não vire param: insert em alerts (severidade='warning').
+8. Para cada suggested_next_step: insert em orientacoes (texto, profissional=user.full_name, data=hoje, patient_id).
+9. Para cada extracted_param com confidence='alta' E field reconhecido E value numérico:
+   insert em parameter_records (field, value, date=param.date||hoje, patient_id).
+10. Update extraction set applied=true, applied_at=now(), applied_by=user.id.
+11. Retorna { alerts: N, orientacoes: M, parameter_records: K }.
 ```
 
-## 2. Edge Function `clinical-extract`
+CORS, validação Zod do body `{ extraction_id: uuid }`, tratamento 401/403/404/409.
 
-`supabase/functions/clinical-extract/index.ts`. Rotas:
+## 3. Hooks novos
 
-### POST `/clinical-extract`
-Body:
+### `useClinicalExtractionsDb.ts`
 ```ts
-{
-  patientName: string,
-  fields: Record<string, string>,   // { anotacoes: "...", evolucao: "..." }
-  structuredData?: Record<string, unknown>, // dados que JÁ vieram estruturados (HbA1c, PAS, etc.) pra IA não duplicar
-  model?: string,                   // default google/gemini-3-flash-preview
-}
+useExtractions(filter?: { patientId?, applied?, limit? }) // SELECT
+useSaveExtractions()        // batch INSERT a partir do estado da etapa 5
+useApplyExtraction()        // chama edge function
+useUnlinkExtraction()       // patient_id = null
+useLinkExtractionToPatient() // patient_id = X (com lookup CPF se quiser)
 ```
 
-Response (estruturado via tool calling — sem JSON.parse frágil):
-```ts
-{
-  summary: string,                  // 3-5 linhas
-  highlights: Array<{
-    text: string,                   // "HbA1c 9,8% identificada na evolução de 12/03"
-    category: 'exame' | 'sintoma' | 'evento_adverso' | 'medicacao' | 'queixa' | 'outro',
-    severity: 'critico' | 'alto' | 'moderado' | 'baixo',
-  }>,
-  extractedParams: Array<{
-    field: 'hba1c' | 'glicemia' | 'pas' | 'pad' | 'imc' | 'peso' | 'ldl' | 'hdl' | 'phq9' | 'gad7' | 'act' | 'creatinina' | 'albuminuria' | 'outro',
-    fieldOther?: string,            // quando field='outro'
-    value: number | string,
-    unit?: string,
-    date?: string,                  // ISO se identificável
-    source: string,                 // qual campo de texto / qual trecho ("anotacoes: 'HbA1c=9,8 em 12/03'")
-    confidence: 'alta' | 'media' | 'baixa',
-  }>,
-  redFlags: string[],               // ex: "Menção a dor torácica não investigada"
-  suggestedNextSteps: string[],
-  notes: string[],                  // ambiguidades, dados conflitantes
-}
+### Ajuste em `useClinicalExtraction.ts`
+Sem mudança estrutural — continua orquestrando IA. Só exporta `results` num formato fácil de mapear pra insert (já está).
+
+## 4. UI: 3 mudanças
+
+### 4.1 `ClinicalExtractionStep.tsx` — coluna "Vínculo" + ações de salvar
+
+Cada card de paciente ganha:
+
+- Badge no header esquerdo:
+  - 🟢 "Vinculado: João Silva" (se CPF da planilha bateu com paciente cadastrado)
+  - 🟡 "Sem vínculo (CPF não encontrado)"
+  - ⚪ "Sem CPF na planilha"
+- Botão "Vincular manualmente" (popover com busca de paciente por nome) quando 🟡 ou ⚪.
+- Quando expandido, ao final dos detalhes:
+  - Botão **"Salvar no prontuário"** (vira `clinical_extractions` row + chama `apply-extraction`).
+  - Se já salvo, mostra: "✓ Aplicado em DD/MM HH:mm — gerou X alertas, Y orientações" + botão "Ver no paciente" (link `/paciente/:id`).
+
+Toolbar acima da lista:
+- Contador "12 vinculados / 3 sem CPF / 5 sem match"
+- Botão **"Salvar e aplicar todos vinculados"** (loop processOne→insert→apply, com progresso)
+
+### 4.2 `PerfilPaciente.tsx` — aba/seção "Extrações IA"
+
+Nova seção (collapsible card) listando últimas 10 `clinical_extractions` desse paciente:
+- Data, modelo usado, sumário (1ª linha), badges de # red flags / # params, quem aplicou.
+- Click → modal expandido (mesmo layout do card da etapa 5) somente leitura.
+
+### 4.3 `JornadaClinica.tsx` — banner discreto
+
+Se houver extração não-aplicada ou recente (<7d) pro paciente: banner azul "1 extração IA pendente de revisão" com botão "Revisar".
+
+## 5. Fluxo do usuário (ponta a ponta)
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│ 1. Upload planilha (.xlsx)                                 │
+│ 2. Etapas 1-3 (já existe)                                  │
+│ 3. Etapa 5: extração IA (já existe)                        │
+│ 4. Card por paciente mostra match com cadastro:            │
+│    - 12 vinculados (CPF bateu)                             │
+│    - 3 sem CPF na planilha                                 │
+│    - 5 com CPF mas sem cadastro                            │
+│ 5. Usuário revisa, opcionalmente vincula manual            │
+│ 6. Click "Salvar e aplicar todos vinculados":              │
+│    a) INSERT clinical_extractions (12 rows)                │
+│    b) edge fn apply-extraction × 12                        │
+│    c) Cada uma cria N alertas + M orientações + K params   │
+│ 7. Toast: "12 pacientes atualizados — 47 alertas, 30 ori-  │
+│    entações, 18 parâmetros gerados"                        │
+│ 8. Cada alerta aparece em /alertas e na Jornada Clínica    │
+│    do paciente. Cada orientação em /paciente/:id.          │
+└────────────────────────────────────────────────────────────┘
 ```
 
-Implementação:
-- Lovable AI Gateway (`https://ai.gateway.lovable.dev/v1/chat/completions`).
-- **Tool calling** com schema acima (pattern recomendado em `extracting-structured-output`).
-- System prompt: especialista em registro clínico em PT-BR. Regras: não inventar valores, citar fonte exata, marcar `confidence: 'baixa'` quando ambíguo.
-- Streaming desligado (resposta única estruturada).
-- Tratamento 429 (rate limit) → retorno 429 com `{ error, retryAfter }`. 402 → 402 com mensagem clara.
-- CORS headers + `verify_jwt = false` (paciente nem login pra usar — mas tela exige login no app).
+## 6. Edge cases
 
-### POST `/clinical-extract-batch` (alternativa)
-Mesmo schema mas aceita array. Processa sequencial no servidor com `await Promise.allSettled` em chunks de 5.
-**Decisão**: começar só com endpoint singular + chamadas paralelas controladas no client (3 simultâneas). Mais simples e dá controle de progresso fino. Batch endpoint fica pra sprint futuro se virar gargalo.
-
-## 3. Hook `useClinicalExtraction`
-
-`src/hooks/useClinicalExtraction.ts`:
-```ts
-export function useClinicalExtraction() {
-  const [progress, setProgress] = useState({ done: 0, total: 0, status: 'idle' });
-  const [results, setResults] = useState<Map<number, ClinicalExtraction>>(new Map());
-
-  const run = async (
-    rows: Record<string, unknown>[],
-    mapping: ColumnMapping[],
-    textColumns: string[],          // colunas a processar
-    options: { model?: string; concurrency?: number; signal?: AbortSignal }
-  ) => { /* paralelo controlado, atualiza Map e progress */ };
-
-  const cancel = () => { /* abort */ };
-
-  return { run, cancel, progress, results };
-}
-```
-
-- Concurrency = 3.
-- Cada chamada vira `supabase.functions.invoke('clinical-extract', { body })`.
-- Guarda `signal` pra cancelamento.
-
-## 4. Nova etapa "Extração IA" na UI
-
-`src/pages/IAplanilhas.tsx`:
-
-### 4.1 Stepper ganha 5ª etapa
-`STEPS = ['Upload', 'Mapeamento', 'Validação', 'Insights', 'Extração IA']`
-
-### 4.2 Botão "Aprofundar com IA" no fim da Etapa 3
-Aparece se houver pelo menos 1 coluna mapeada como texto clínico (`anotacoes` / `evolucao` / `observacoes` / `resumo_consulta` / `resultado_exame`) **OU** colunas de texto detectadas com média >120 chars não mapeadas.
-
-### 4.3 Tela da etapa 4
-- **Cabeçalho**: contador "Processando 12/45 pacientes" + ProgressBar + botões Pausar/Cancelar.
-- **Painel de configuração** (collapsible):
-  - Checkbox por coluna candidata ("Incluir esta coluna na extração")
-  - Select de modelo: Flash (rápido) / Pro (mais preciso)
-  - Slider/select de quantidade: "Processar primeiros N" (default 50, max = total)
-  - Botão "Iniciar Extração"
-- **Feedback de erro de quota** (402) ou rate limit (429) — toast + estado preserva o que já foi processado.
-- **Lista de resultados por paciente** (mesma estética dos cards de Insights): expansível mostrando:
-  - **Resumo executivo** (texto narrativo)
-  - **Highlights** (badges coloridos por severidade + categoria)
-  - **Parâmetros extraídos do texto** (tabela: parâmetro / valor / unidade / data / fonte / confiança)
-  - **Red flags** (lista vermelha)
-  - **Próximos passos** (lista verde, mesmo padrão da etapa 3)
-  - **Notas/ambiguidades** (lista cinza)
-- **Botão "Mesclar com Insights estruturados"**: cria entrada agregada que combina `outOfTarget` da etapa 3 + `extractedParams` da etapa 4. (Sem persistir no backend.)
-
-### 4.4 Integração com etapa 3
-Os parâmetros extraídos com `confidence: 'alta'` aparecem com badge "via IA" na visão de paciente da etapa 3 (Insight expandido). Não modificam o `priorityScore` automaticamente nesta sprint — só sinalizam que existem.
-
-## 5. Prompt da IA (rascunho)
-
-```
-Você é um especialista em registro clínico de prontuário em português brasileiro.
-Recebe campos de texto de um paciente (anotações, evolução, etc.) e deve:
-
-1. Extrair parâmetros clínicos QUANTITATIVOS mencionados no texto
-   (HbA1c, glicemia, PA sistólica/diastólica, IMC, peso, LDL/HDL,
-   creatinina, albuminúria, escores PHQ-9/GAD-7/ACT).
-   - Sempre cite o trecho fonte exato (≤80 chars).
-   - Marque confidence='baixa' se valor está ambíguo, indireto ou
-     sem unidade explícita.
-   - Inclua data se mencionada (formato ISO).
-
-2. Identificar HIGHLIGHTS — fatos clinicamente relevantes:
-   resultados de exame fora da meta, sintomas novos (dor torácica,
-   dispneia, sangramento, perda de peso involuntária), eventos
-   adversos a medicações, queixas com impacto funcional, hospitalização
-   recente, suspensão de tratamento.
-
-3. Identificar RED FLAGS — sinais que exigem ação imediata
-   (crise hipertensiva, ideação suicida, dor torácica anginosa,
-   sintomas neurológicos focais, sangramento ativo, etc.).
-
-4. Resumo executivo de 3-5 linhas: estado clínico atual,
-   tendência (melhora/piora/estável), pontos de atenção.
-
-5. Próximos passos sugeridos (3-5 itens, acionáveis pelo profissional).
-
-NÃO invente valores. NÃO infira diagnósticos não escritos.
-Se um campo estiver vazio ou irrelevante, retorne arrays vazios.
-
-Dados do paciente:
-- Nome: {nome}
-- Dados estruturados já conhecidos (não duplique): {structuredData}
-- Campos texto:
-  {fields como blocos rotulados}
-```
-
-## 6. Custos & avisos ao usuário
-
-Banner discreto na etapa 4 antes de iniciar:
-> "Esta análise usa IA generativa e consome créditos do workspace. ~$0,001 por paciente no modelo Flash. Para 100 pacientes ≈ $0,10."
-> (números aproximados — usar valores reais de tabela quando disponíveis)
-
-Se `402` → toast com link pra `Settings > Workspace > Usage`.
-
-## 7. Edge cases
-
-| Cenário | Tratamento |
+| Caso | Tratamento |
 |---|---|
-| Coluna texto vazia em todos os pacientes | Não oferece etapa 4 |
-| Texto > 8k chars num campo | Trunca em 6k (margem pro prompt). Avisa em `notes`. |
-| 0 parâmetros extraídos pra um paciente | Card mostra apenas resumo + highlights + "Sem parâmetros quantitativos identificados no texto" |
-| Cancelamento mid-batch | Mantém resultados já obtidos; permite retomar do índice X |
-| Mesma chamada falha 3x | Marca paciente como erro; lista no topo "3 pacientes não processados" + botão "Tentar novamente só esses" |
-| Erro de parse do tool call | Trata como falha do paciente, salva raw response em `notes` pra debug |
+| CPF inválido (menos que 11 dígitos) | Não tenta match. Marca como "sem CPF". |
+| Múltiplos pacientes com mesmo CPF | `find_patient_by_cpf` retorna o mais recente. Backend aceita; UI mostra warning "encontrados 2 cadastros, usando o mais recente". |
+| Profissional sem permissão no paciente vinculado | `can_access_patient` falha → toast "você não tem acesso a este paciente, peça vínculo ao gestor". Extração fica salva mas não aplicada. |
+| Reextração do mesmo CPF | Nova `clinical_extractions` com `replaces_id` apontando pra anterior. Aba do paciente lista as duas. |
+| Próximo passo duplicado entre upload e o que já existe em orientacoes | Aceitável nesta sprint (sem dedup). Anotação: futuro = comparar texto. |
+| Param extraído mas patient não tem `linha_cuidado` ativa | Insert vai mesmo assim (parameter_records permite). Apenas não aparecerá no painel de "fora da meta" dessa linha. |
+| Edge fn 5xx no meio do batch | Cada um é independente; UI retoma os faltantes. |
 
-## 8. Métricas (futuro, fora desta sprint)
-- Tempo médio por paciente
-- % de extrações com `confidence:'alta'`
-- % de pacientes com red flag
-- Comparativo: parâmetros estruturados vs extraídos do texto
+## 7. Arquivos
 
-## Arquivos editados / criados
+### Migrations
+- `20260427_clinical_extractions_table.sql` (tabela + RLS + índices)
+- `20260427_find_patient_by_cpf.sql` (função)
+- `20260427_audit_clinical_extractions.sql` (trigger)
 
-| Arquivo | Mudança |
+### Edge function
+- `supabase/functions/apply-extraction/index.ts` (nova)
+
+### Frontend
+- `src/hooks/useClinicalExtractionsDb.ts` (novo)
+- `src/components/shared/ClinicalExtractionStep.tsx` (badges de vínculo + botões salvar/aplicar; popover busca paciente)
+- `src/pages/PerfilPaciente.tsx` (nova seção "Extrações IA")
+- `src/pages/JornadaClinica.tsx` (banner pendente)
+- `src/integrations/supabase/types.ts` (regen automático)
+
+## 8. Riscos & mitigações
+
+| Risco | Mitigação |
 |---|---|
-| `supabase/functions/clinical-extract/index.ts` | **novo** — edge function com tool calling Lovable AI |
-| `src/hooks/useClinicalExtraction.ts` | **novo** — orquestra batch com concurrency + abort |
-| `src/lib/clinical-analysis.ts` | adicionar `KNOWN_FIELDS` para campos texto; export type `ClinicalExtraction` |
-| `src/pages/IAplanilhas.tsx` | nova etapa 5 com config, progresso e visualização de resultados; botão "via IA" na etapa 3 |
-| `src/components/shared/HighlightBadge.tsx` | **novo** — badge categorizado por severidade |
+| Aplicar extração ruim gera spam de alertas | UI exige clique explícito por paciente OU "salvar todos vinculados". Nada automático. |
+| Conflito de versão (mesmo CPF aplicado 2x) | `replaces_id` mantém histórico. `applied=true` previne re-aplicar. |
+| Edge function lenta no batch | Client envia 3 paralelas (mesma `concurrency` da extração); progresso visível. |
+| RLS bloqueia leitura de extração antiga depois que profissional perde acesso | Esperado e correto. |
 
-Sem migrations. Sem mudança de schema do banco. Sem persistência.
+## 9. Fora de escopo (próximas sprints)
 
-## Fora de escopo (próximas iterações)
-
-1. **Persistir extrações no Supabase** (tabela `clinical_extractions` ligada a `patient_id` quando o paciente já existe no sistema). Hoje só roda em memória por upload.
-2. **Match automático paciente da planilha ↔ paciente cadastrado** (por CPF) e gravar highlights como `alerts` ou `orientacoes`.
-3. **Batch endpoint server-side** (se 50+ pacientes virar lento).
-4. **Modo "ingestão incremental"** — reanalisar só linhas novas vs upload anterior.
-5. **Comparação entre uploads** (delta de evolução do paciente entre planilhas).
-6. **Áudio/PDF**: aceitar upload de PDF/áudio (Lovable AI multimodal) e fazer extração — fora deste sprint.
-
+- Comparar uploads (delta entre extrações do mesmo paciente)
+- PDF/áudio multimodal
+- Dedup automática de orientações
+- Acionar `automation_rules` ao aplicar extração
