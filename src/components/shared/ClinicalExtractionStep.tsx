@@ -879,7 +879,8 @@ export function ClinicalExtractionStep({ rows, mapping, headers, fileName }: Pro
                         </div>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </CardContent>
               </Card>
             );
