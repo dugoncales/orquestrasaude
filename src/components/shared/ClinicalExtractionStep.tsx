@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,12 +6,23 @@ import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
 import {
   Brain, Sparkles, AlertTriangle, FileText, ChevronDown, ChevronUp,
   Play, X, RotateCw, Target, Activity, Zap, FlaskConical,
+  Link2, Link2Off, UserCheck, Save, CheckCheck, Search, Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useClinicalExtraction } from '@/hooks/useClinicalExtraction';
+import {
+  useCreateExtractions,
+  useApplyExtraction,
+  useLinkExtractionToPatient,
+  normalizeCpf,
+} from '@/hooks/useClinicalExtractionsDb';
+import { usePatients } from '@/hooks/usePatients';
+import { supabase } from '@/integrations/supabase/client';
 import { FREE_TEXT_FIELDS, type ColumnMapping } from '@/lib/clinical-analysis';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +30,7 @@ interface Props {
   rows: Record<string, unknown>[];
   mapping: ColumnMapping[];
   headers: string[];
+  fileName?: string;
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -43,11 +55,29 @@ const CONFIDENCE_STYLES: Record<string, string> = {
   baixa: 'bg-muted text-muted-foreground',
 };
 
-export function ClinicalExtractionStep({ rows, mapping, headers }: Props) {
+interface PersistMeta {
+  patientId: string | null;
+  patientNameInDb: string | null;
+  cpfRaw: string | null;
+  extractionId: string | null;
+  applied: boolean;
+  appliedSummary?: { alerts: number; orientacoes: number; parameter_records: number };
+  resolving: boolean;
+  saving: boolean;
+  applying: boolean;
+}
+
+function emptyMeta(): PersistMeta {
+  return {
+    patientId: null, patientNameInDb: null, cpfRaw: null, extractionId: null,
+    applied: false, resolving: false, saving: false, applying: false,
+  };
+}
+
+export function ClinicalExtractionStep({ rows, mapping, headers, fileName }: Props) {
   const { run, cancel, progress, results, retryFailed } = useClinicalExtraction();
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<string[]>(() => {
-    // Default: colunas ORIGINAIS cujo mapped está em FREE_TEXT_FIELDS
     return mapping
       .filter((m) => m.mapped && (FREE_TEXT_FIELDS as readonly string[]).includes(m.mapped))
       .map((m) => m.original);
@@ -55,8 +85,16 @@ export function ClinicalExtractionStep({ rows, mapping, headers }: Props) {
   const [model, setModel] = useState('google/gemini-3-flash-preview');
   const [maxRows, setMaxRows] = useState(Math.min(50, rows.length));
   const [showConfig, setShowConfig] = useState(true);
+  const [persistMeta, setPersistMeta] = useState<Map<number, PersistMeta>>(new Map());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [linkOpenFor, setLinkOpenFor] = useState<number | null>(null);
+  const [linkSearch, setLinkSearch] = useState('');
 
-  // Auto-detecta colunas com texto longo (média >120 chars), mesmo as não mapeadas
+  const createExtractions = useCreateExtractions();
+  const applyExtraction = useApplyExtraction();
+  const linkMutation = useLinkExtractionToPatient();
+  const patientsQuery = usePatients();
+
   const candidateColumns = useMemo(() => {
     const sample = rows.slice(0, Math.min(rows.length, 50));
     return headers.filter((h) => {
@@ -76,7 +114,12 @@ export function ClinicalExtractionStep({ rows, mapping, headers }: Props) {
     () =>
       mapping
         .filter((m) => m.mapped && !(FREE_TEXT_FIELDS as readonly string[]).includes(m.mapped))
-        .map((m) => m.mapped!) ,
+        .map((m) => m.mapped!),
+    [mapping],
+  );
+
+  const cpfColumn = useMemo(
+    () => mapping.find((m) => m.mapped === 'cpf')?.original ?? null,
     [mapping],
   );
 
@@ -87,10 +130,211 @@ export function ClinicalExtractionStep({ rows, mapping, headers }: Props) {
     [results],
   );
 
+  // Auto-resolve CPF → patient_id assim que cada extração aparece
+  useEffect(() => {
+    const toResolve: Array<{ rowIndex: number; cpf: string }> = [];
+    const toMarkEmpty: number[] = [];
+    for (const r of sortedResults) {
+      if (!r.data) continue;
+      if (persistMeta.has(r.rowIndex)) continue;
+      const row = rows[r.rowIndex];
+      const rawCpf = cpfColumn && row?.[cpfColumn] != null ? String(row[cpfColumn]) : '';
+      const normalized = normalizeCpf(rawCpf);
+      if (normalized) toResolve.push({ rowIndex: r.rowIndex, cpf: rawCpf });
+      else toMarkEmpty.push(r.rowIndex);
+    }
+    if (toMarkEmpty.length > 0) {
+      setPersistMeta((prev) => {
+        const next = new Map(prev);
+        for (const i of toMarkEmpty) next.set(i, { ...emptyMeta() });
+        return next;
+      });
+    }
+    if (toResolve.length === 0) return;
+
+    setPersistMeta((prev) => {
+      const next = new Map(prev);
+      for (const t of toResolve) {
+        next.set(t.rowIndex, { ...emptyMeta(), cpfRaw: t.cpf, resolving: true });
+      }
+      return next;
+    });
+
+    (async () => {
+      for (const t of toResolve) {
+        try {
+          const { data } = await supabase.rpc('find_patient_by_cpf', { _cpf: t.cpf });
+          let patientName: string | null = null;
+          if (data) {
+            const { data: p } = await supabase
+              .from('patients')
+              .select('nome')
+              .eq('id', data)
+              .maybeSingle();
+            patientName = p?.nome ?? null;
+          }
+          setPersistMeta((prev) => {
+            const next = new Map(prev);
+            next.set(t.rowIndex, {
+              ...(next.get(t.rowIndex) ?? emptyMeta()),
+              cpfRaw: t.cpf,
+              patientId: (data as string | null) ?? null,
+              patientNameInDb: patientName,
+              resolving: false,
+            });
+            return next;
+          });
+        } catch {
+          setPersistMeta((prev) => {
+            const next = new Map(prev);
+            next.set(t.rowIndex, {
+              ...(next.get(t.rowIndex) ?? emptyMeta()),
+              cpfRaw: t.cpf,
+              resolving: false,
+            });
+            return next;
+          });
+        }
+      }
+    })();
+  }, [sortedResults, cpfColumn, rows, persistMeta]);
+
+  const linkStats = useMemo(() => {
+    let linked = 0, noCpf = 0, noMatch = 0, savedApplied = 0;
+    for (const r of sortedResults) {
+      if (!r.data) continue;
+      const m = persistMeta.get(r.rowIndex);
+      if (!m) continue;
+      if (m.applied) savedApplied++;
+      if (m.patientId) linked++;
+      else if (!m.cpfRaw) noCpf++;
+      else noMatch++;
+    }
+    return { linked, noCpf, noMatch, savedApplied };
+  }, [sortedResults, persistMeta]);
+
+  const saveAndApplyOne = async (rowIndex: number): Promise<boolean> => {
+    const r = results.get(rowIndex);
+    if (!r?.data) return false;
+    const meta = persistMeta.get(rowIndex) ?? emptyMeta();
+    if (meta.applied) return true;
+    if (!meta.patientId) {
+      toast.error('Vincule um paciente antes de salvar');
+      return false;
+    }
+    setPersistMeta((prev) => {
+      const next = new Map(prev);
+      next.set(rowIndex, { ...meta, saving: true });
+      return next;
+    });
+    try {
+      let extractionId = meta.extractionId;
+      if (!extractionId) {
+        const params = r.data.extractedParams ?? [];
+        const altaCount = params.filter((p) => p.confidence === 'alta').length;
+        const overall = altaCount > params.length / 2 ? 'alta' : altaCount > 0 ? 'media' : 'baixa';
+        const created = await createExtractions.mutateAsync([
+          {
+            patient_id: meta.patientId,
+            cpf_raw: meta.cpfRaw,
+            patient_name_source: r.patientName,
+            source_filename: fileName ?? null,
+            source_row_index: rowIndex,
+            summary: r.data.summary ?? null,
+            highlights: r.data.highlights ?? [],
+            extracted_params: r.data.extractedParams ?? [],
+            red_flags: r.data.redFlags ?? [],
+            suggested_next_steps: r.data.suggestedNextSteps ?? [],
+            notes: r.data.notes ?? [],
+            model,
+            confidence_overall: overall,
+          },
+        ]);
+        extractionId = created[0]?.id ?? null;
+        if (!extractionId) throw new Error('Falha ao salvar extração');
+      }
+      setPersistMeta((prev) => {
+        const next = new Map(prev);
+        next.set(rowIndex, {
+          ...(next.get(rowIndex) ?? emptyMeta()),
+          extractionId,
+          saving: false,
+          applying: true,
+        });
+        return next;
+      });
+      const result = await applyExtraction.mutateAsync(extractionId);
+      setPersistMeta((prev) => {
+        const next = new Map(prev);
+        next.set(rowIndex, {
+          ...(next.get(rowIndex) ?? emptyMeta()),
+          extractionId,
+          applied: true,
+          applying: false,
+          appliedSummary: result.results,
+        });
+        return next;
+      });
+      return true;
+    } catch (e) {
+      setPersistMeta((prev) => {
+        const next = new Map(prev);
+        next.set(rowIndex, {
+          ...(next.get(rowIndex) ?? emptyMeta()),
+          saving: false,
+          applying: false,
+        });
+        return next;
+      });
+      toast.error(`Falha em ${r.patientName}: ${e instanceof Error ? e.message : 'erro'}`);
+      return false;
+    }
+  };
+
+  const saveAndApplyAllLinked = async () => {
+    setBulkRunning(true);
+    let ok = 0, fail = 0;
+    for (const r of sortedResults) {
+      if (!r.data) continue;
+      const m = persistMeta.get(r.rowIndex);
+      if (!m?.patientId || m.applied) continue;
+      const success = await saveAndApplyOne(r.rowIndex);
+      if (success) ok++; else fail++;
+    }
+    setBulkRunning(false);
+    if (ok > 0) toast.success(`${ok} paciente${ok === 1 ? '' : 's'} atualizado${ok === 1 ? '' : 's'} no prontuário`);
+    if (fail > 0) toast.error(`${fail} falha${fail === 1 ? '' : 's'} ao aplicar`);
+  };
+
+  const linkPatientManually = async (rowIndex: number, patientId: string, patientName: string) => {
+    const meta = persistMeta.get(rowIndex) ?? emptyMeta();
+    if (meta.extractionId) {
+      try {
+        await linkMutation.mutateAsync({ id: meta.extractionId, patientId });
+      } catch (e) {
+        toast.error(`Falha ao vincular: ${e instanceof Error ? e.message : 'erro'}`);
+        return;
+      }
+    }
+    setPersistMeta((prev) => {
+      const next = new Map(prev);
+      next.set(rowIndex, {
+        ...(next.get(rowIndex) ?? emptyMeta()),
+        patientId,
+        patientNameInDb: patientName,
+      });
+      return next;
+    });
+    setLinkOpenFor(null);
+    setLinkSearch('');
+    toast.success(`Vinculado a ${patientName}`);
+  };
+
   const handleStart = async () => {
     if (!canStart) return;
     setShowConfig(false);
     setExpandedRow(null);
+    setPersistMeta(new Map());
     try {
       await run({
         rows,
@@ -108,6 +352,19 @@ export function ClinicalExtractionStep({ rows, mapping, headers }: Props) {
   };
 
   const failedCount = sortedResults.filter((r) => r.error).length;
+
+  const filteredPatients = useMemo(() => {
+    const term = linkSearch.trim().toLowerCase();
+    const list = patientsQuery.data ?? [];
+    if (!term) return list.slice(0, 20);
+    return list
+      .filter(
+        (p) =>
+          p.nome.toLowerCase().includes(term) ||
+          (p.cpf ?? '').replace(/\D/g, '').includes(term.replace(/\D/g, '')),
+      )
+      .slice(0, 20);
+  }, [linkSearch, patientsQuery.data]);
 
   return (
     <div className="space-y-4">
