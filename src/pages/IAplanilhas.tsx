@@ -681,7 +681,7 @@ export default function IAplanilhas() {
 
       {/* Step 4: Extração via IA */}
       {step === 4 && (
-        <ClinicalExtractionStep rows={rows} mapping={mapping} headers={headers} />
+        <ClinicalExtractionStep rows={rows} mapping={mapping} headers={headers} fileName={fileName} />
       )}
     </div>
   );
