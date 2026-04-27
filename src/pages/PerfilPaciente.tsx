@@ -349,6 +349,9 @@ export default function PerfilPaciente() {
         </CardContent>
       </Card>
 
+      {/* Extrações IA */}
+      <PatientExtractionsList patientId={patient.id} />
+
       {/* Anexos */}
       <Card>
         <CardHeader className="pb-3">

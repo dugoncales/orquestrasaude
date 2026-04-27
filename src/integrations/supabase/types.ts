@@ -327,6 +327,86 @@ export type Database = {
         }
         Relationships: []
       }
+      clinical_extractions: {
+        Row: {
+          applied: boolean
+          applied_at: string | null
+          applied_by: string | null
+          confidence_overall: string | null
+          cpf_normalized: string | null
+          cpf_raw: string | null
+          created_at: string
+          created_by: string | null
+          extracted_params: Json
+          highlights: Json
+          id: string
+          model: string | null
+          notes: string[]
+          patient_id: string | null
+          patient_name_source: string
+          red_flags: string[]
+          replaces_id: string | null
+          source_filename: string | null
+          source_row_index: number | null
+          suggested_next_steps: string[]
+          summary: string | null
+        }
+        Insert: {
+          applied?: boolean
+          applied_at?: string | null
+          applied_by?: string | null
+          confidence_overall?: string | null
+          cpf_normalized?: string | null
+          cpf_raw?: string | null
+          created_at?: string
+          created_by?: string | null
+          extracted_params?: Json
+          highlights?: Json
+          id?: string
+          model?: string | null
+          notes?: string[]
+          patient_id?: string | null
+          patient_name_source: string
+          red_flags?: string[]
+          replaces_id?: string | null
+          source_filename?: string | null
+          source_row_index?: number | null
+          suggested_next_steps?: string[]
+          summary?: string | null
+        }
+        Update: {
+          applied?: boolean
+          applied_at?: string | null
+          applied_by?: string | null
+          confidence_overall?: string | null
+          cpf_normalized?: string | null
+          cpf_raw?: string | null
+          created_at?: string
+          created_by?: string | null
+          extracted_params?: Json
+          highlights?: Json
+          id?: string
+          model?: string | null
+          notes?: string[]
+          patient_id?: string | null
+          patient_name_source?: string
+          red_flags?: string[]
+          replaces_id?: string | null
+          source_filename?: string | null
+          source_row_index?: number | null
+          suggested_next_steps?: string[]
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_extractions_replaces_id_fkey"
+            columns: ["replaces_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_extractions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exams: {
         Row: {
           care_line_id: string | null
@@ -1052,6 +1132,7 @@ export type Database = {
         Returns: boolean
       }
       current_patient_id: { Args: never; Returns: string }
+      find_patient_by_cpf: { Args: { _cpf: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
