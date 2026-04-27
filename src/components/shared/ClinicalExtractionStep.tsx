@@ -663,8 +663,96 @@ export function ClinicalExtractionStep({ rows, mapping, headers, fileName }: Pro
                     </div>
                   </button>
 
-                  {isExpanded && data && (
+                  {isExpanded && data && (() => {
+                    const meta = persistMeta.get(r.rowIndex) ?? emptyMeta();
+                    const busy = meta.saving || meta.applying || meta.resolving;
+                    return (
                     <div className="mt-3 pt-3 border-t border-border space-y-3">
+                      {/* Painel de vínculo + ação de salvar */}
+                      <div className={cn(
+                        'p-3 rounded-lg border flex items-center justify-between gap-3 flex-wrap',
+                        meta.applied
+                          ? 'bg-[hsl(var(--success))]/5 border-[hsl(var(--success))]/30'
+                          : meta.patientId
+                          ? 'bg-primary/5 border-primary/20'
+                          : 'bg-[hsl(var(--warning))]/5 border-[hsl(var(--warning))]/30',
+                      )}>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {meta.resolving ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
+                          ) : meta.applied ? (
+                            <CheckCheck className="h-4 w-4 text-[hsl(var(--success))] flex-shrink-0" />
+                          ) : meta.patientId ? (
+                            <UserCheck className="h-4 w-4 text-primary flex-shrink-0" />
+                          ) : (
+                            <Link2Off className="h-4 w-4 text-[hsl(var(--warning))] flex-shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            {meta.applied && meta.appliedSummary ? (
+                              <p className="text-xs font-medium">
+                                Aplicado · {meta.appliedSummary.alerts} alerta(s), {meta.appliedSummary.orientacoes} orientação(ões), {meta.appliedSummary.parameter_records} parâmetro(s)
+                              </p>
+                            ) : meta.patientId && meta.patientNameInDb ? (
+                              <p className="text-xs font-medium truncate">Vinculado a: {meta.patientNameInDb}</p>
+                            ) : meta.cpfRaw ? (
+                              <p className="text-xs">CPF não encontrado no cadastro</p>
+                            ) : (
+                              <p className="text-xs">Sem CPF na planilha</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!meta.applied && (
+                            <Popover
+                              open={linkOpenFor === r.rowIndex}
+                              onOpenChange={(o) => { setLinkOpenFor(o ? r.rowIndex : null); if (!o) setLinkSearch(''); }}
+                            >
+                              <PopoverTrigger asChild>
+                                <Button size="sm" variant="outline" className="h-8 gap-1">
+                                  <Search className="h-3 w-3" /> {meta.patientId ? 'Trocar' : 'Vincular'}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-2" align="end">
+                                <Input
+                                  placeholder="Buscar por nome ou CPF…"
+                                  value={linkSearch}
+                                  onChange={(e) => setLinkSearch(e.target.value)}
+                                  className="h-8 text-xs mb-2"
+                                  autoFocus
+                                />
+                                <div className="max-h-60 overflow-auto space-y-1">
+                                  {filteredPatients.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground p-2">Nenhum paciente encontrado</p>
+                                  ) : (
+                                    filteredPatients.map((p) => (
+                                      <button
+                                        key={p.id}
+                                        onClick={() => linkPatientManually(r.rowIndex, p.id, p.nome)}
+                                        className="w-full text-left p-2 rounded hover:bg-muted text-xs"
+                                      >
+                                        <p className="font-medium">{p.nome}</p>
+                                        <p className="text-muted-foreground text-[10px]">CPF: {p.cpf}</p>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                          {!meta.applied && (
+                            <Button
+                              size="sm"
+                              onClick={() => saveAndApplyOne(r.rowIndex)}
+                              disabled={!meta.patientId || busy}
+                              className="h-8 gap-1"
+                            >
+                              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                              Salvar no prontuário
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Resumo */}
                       <div className="p-3 rounded-lg bg-primary/5 border border-primary/15">
                         <p className="text-[11px] font-semibold text-foreground mb-1 flex items-center gap-1.5">
@@ -672,6 +760,7 @@ export function ClinicalExtractionStep({ rows, mapping, headers, fileName }: Pro
                         </p>
                         <p className="text-xs text-foreground whitespace-pre-line">{data.summary}</p>
                       </div>
+
 
                       {/* Red flags */}
                       {data.redFlags.length > 0 && (
