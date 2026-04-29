@@ -76,6 +76,11 @@ export default function PerfilPaciente() {
   const { data: careLinesData } = useCareLines();
 
   const [filter, setFilter] = useState<TimelineFilter>('todos');
+  const [openEdit, setOpenEdit] = useState(false);
+  const [openParam, setOpenParam] = useState(false);
+  const [openOrient, setOpenOrient] = useState(false);
+  const { data: orientacoesData } = useOrientacoes(id);
+  const orientacoes = orientacoesData || [];
 
   const journeys = journeysData || [];
   const appointments = appointmentsData || [];
