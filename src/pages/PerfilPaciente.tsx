@@ -385,6 +385,34 @@ export default function PerfilPaciente() {
           <AttachmentList patientId={patient.id} compact />
         </CardContent>
       </Card>
+
+      {/* Orientações */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm">Orientações</CardTitle>
+          <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setOpenOrient(true)}>
+            <Plus className="h-3 w-3" /> Nova
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {orientacoes.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma orientação registrada</p>
+          ) : (
+            <div className="space-y-2">
+              {orientacoes.slice(0, 8).map(o => (
+                <div key={o.id} className="border-l-2 border-primary/40 pl-3 py-1.5">
+                  <p className="text-xs text-foreground">{o.texto}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatDateBR(o.data)} · {o.profissional}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <PatientFormDialog open={openEdit} onOpenChange={setOpenEdit} patient={patient} />
+      <RegisterParameterDialog open={openParam} onOpenChange={setOpenParam} patientId={patient.id} />
+      <AddOrientacaoDialog open={openOrient} onOpenChange={setOpenOrient} patientId={patient.id} />
     </div>
   );
 }
