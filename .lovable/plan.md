@@ -1,248 +1,175 @@
+# Plano: Tornar o app totalmente funcional (uso real)
 
-# Plano: Persistir extrações IA e linkar com paciente cadastrado
+Hoje o app já está conectado ao banco em quase tudo (leitura), mas várias **ações** ainda são botões decorativos, há dados **mock** em duas telas e o Editor No-Code **não persiste** as alterações. Este sprint fecha essas pontas em ordem de impacto clínico, deixando o app pronto para uso real ponta a ponta.
 
-Hoje a extração da `IAplanilhas` (etapa 5) roda só em memória. Cada upload morre quando a aba fecha. Esse sprint **transforma os resultados em ações reais no sistema**: cruza com pacientes cadastrados pelo CPF, salva tudo no banco com referência ao paciente, e gera automaticamente:
+## Estado atual (o que já funciona)
 
-- **Alertas** para cada red flag encontrada
-- **Orientações** para cada "próximo passo sugerido"
-- **Registros de parâmetro** para cada valor extraído com `confidence: 'alta'`
+- Leitura real: `Pacientes`, `Jornada Clínica`, `Perfil Paciente`, `Consultas`, `Exames`, `Questionários`, `BI`, `Linhas de Cuidado`, `Auditoria`, `IA Planilhas`, dashboards de profissional/paciente.
+- Hooks de mutação já existem para: patients, appointments, exams, tasks, attachments, parameter_records, professionals, patient_assignments, journeys, clinical_extractions.
+- IA de planilhas: extração + persistência + apply (alertas/orientações/parâmetros) já implementados.
+- Auth + RLS + roles + audit_logs funcionando.
 
-Resultado: o profissional faz upload da planilha → IA extrai → ele revisa → 1 clique e aquilo vira pendência real na Jornada Clínica do paciente certo.
+## O que ainda não é "uso real"
+
+| Onde | Problema |
+|---|---|
+| `Pacientes` | Botão "Novo Paciente" sem ação |
+| `Consultas` | "Nova Consulta", "Iniciar" sem ação |
+| `Exames` | "Nova Solicitação", marcar resultado sem ação |
+| `Questionários` | "Novo Questionário", responder sem ação |
+| `JornadaClinica` | Botões de avançar etapa, registrar pendência, criar tarefa sem mutação |
+| `PerfilPaciente` | Editar dados, registrar parâmetro, anexar arquivo sem ação |
+| `EditorNoCode` | Edita só em memória — não salva no banco |
+| `StudioAdmin` | `mockUsers`, `mockAudit`, `mockPermissionsMatrix` ainda em uso |
+| `DashboardGestor` | `mockAIInsights` decorativo |
+| `DashboardPaciente` | Falta CTA real (responder questionário, ver exame) |
+| Hooks faltando | `useCreateCareLine` / Update / Delete (Editor depende disso); `useCreate/UpdateAlert`, `useCreateOrientacao`, `useCreateAutomationRule` (CRUD), `useUpdateUserRole` |
 
 ## Decisões de produto
 
 | Tema | Escolha |
 |---|---|
-| Match paciente | Por **CPF normalizado** (só dígitos). Sem CPF → fica como "não vinculado" mas ainda é salvo. |
-| Quem pode salvar | Profissional só salva extrações de pacientes que ele acessa (RLS via `can_access_patient`). Admin/manager veem tudo. |
-| Quando salvar | Não-automático. Após extração, usuário escolhe "Salvar todos" ou marca paciente por paciente e clica "Salvar selecionados". Permite revisar antes de virar alerta real. |
-| O que gera automaticamente | Red flag → `alerts` (severidade `critical`) · Próximo passo → `orientacoes` · Param `confidence:'alta'` → `parameter_records` · Highlight crítico → `alerts` (severidade `warning`). |
-| Highlights moderados/baixos | Ficam guardados no JSON da extração mas não viram alerta. |
-| Reprocessamento | Se o mesmo CPF já tem extração no upload, marca como "atualização" — nova entrada com `replaces_id` apontando pra anterior. Não apaga histórico. |
+| Onde criar paciente / consulta / exame | Dialog modal na própria tela (não rota nova) — mais rápido pro fluxo clínico |
+| Forms | `react-hook-form` + `zod`; reaproveita `Dialog`, `Form`, `Input`, `Select`, `Textarea` já no projeto |
+| Permissão de ações | Botões só aparecem para roles autorizadas (admin/manager/professional vinculado) |
+| Exclusão | Soft delete onde possível (status='inativo'); hard delete só admin |
+| Editor No-Code | Botão "Salvar" explícito no header (evita salvar a cada tecla); detecta dirty state |
+| Mocks | Substituir por dados reais; quando vazio, mostrar empty state com CTA |
 
-## 1. Migrations (3)
+## Sprints (5 entregas em ordem)
 
-### 1.1 Tabela `clinical_extractions`
-Guarda o resultado bruto da IA por linha de planilha + match com paciente.
+### Sprint 1 — CRUD essencial dos pacientes e jornadas
+**Impacto: maior. Sem isso, nada flui.**
+- `Pacientes`: dialog "Novo Paciente" (campos mínimos: nome, CPF, sexo, nascimento, telefone, convênio, unidade) → `useCreatePatient`. Validação Zod (CPF formato, datas).
+- `PerfilPaciente`: botão "Editar" que abre o mesmo dialog em modo edição → `useUpdatePatient`. Inclui edição de diagnósticos, alergias, medicações, fatores de risco (chips editáveis).
+- `PerfilPaciente`: card "Registrar parâmetro" → dialog com seleção de parâmetro (`parameterDictionary`), valor, data → `useCreateParameterRecord`. Ao salvar, recalcula `risk_level`/`score_risco` via função SQL nova `recalc_patient_risk(_patient_id)`.
+- `PerfilPaciente`: card "Adicionar orientação" → `useCreateOrientacao` (novo).
+- `JornadaClinica`: ações da etapa atual:
+  - "Concluir etapa" → update step.status='concluido', incrementa `current_step_index`.
+  - "Registrar pendência" → adiciona texto em `pendencias[]`.
+  - "Criar tarefa" → dialog → `useCreateTask`.
+  - "Agendar consulta da etapa" → `useCreateAppointment` com `journey_step_id` preenchido.
 
-```sql
-CREATE TABLE public.clinical_extractions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  patient_id uuid,                          -- nullable (sem match)
-  cpf_raw text,                             -- como veio na planilha
-  cpf_normalized text,                      -- só dígitos, índice
-  patient_name_source text NOT NULL,        -- nome como veio na planilha
-  source_filename text,
-  source_row_index integer,                 -- 0-based, pra rastrear
+### Sprint 2 — CRUD de consultas, exames, questionários
+- `Consultas`:
+  - "Nova Consulta" → dialog (paciente, profissional, tipo, data, hora, linha) → `useCreateAppointment`.
+  - "Iniciar" → `useUpdateAppointment` para status='realizada' + abrir dialog de "Registrar atendimento" (observações, parâmetros aferidos, próximas orientações).
+  - "Cancelar/Reagendar" → menu por linha.
+- `Exames`:
+  - "Nova Solicitação" → dialog → `useCreateExam` (status='solicitado').
+  - Linha do exame: "Registrar resultado" → dialog (data + valor textual + opcional anexo via `useUploadAttachment` → bucket `attachments`).
+- `Questionários`:
+  - "Novo Questionário" (admin/manager) → dialog cria `questionnaires` + permite adicionar `questionnaire_items` (perguntas).
+  - "Enviar para paciente" → cria `questionnaire_responses` em status pendente.
+  - "Responder" (paciente) → tela simples de preenchimento → calcula score → `useUpdateQuestionnaireResponse`.
 
-  summary text,
-  highlights jsonb DEFAULT '[]'::jsonb,
-  extracted_params jsonb DEFAULT '[]'::jsonb,
-  red_flags text[] DEFAULT '{}',
-  suggested_next_steps text[] DEFAULT '{}',
-  notes text[] DEFAULT '{}',
+### Sprint 3 — Editor No-Code persistente + Linhas de Cuidado
+- Hook novo `useCareLines.ts` ganha `useCreateCareLine`, `useUpdateCareLine`, `useDeleteCareLine`.
+- `EditorNoCode`:
+  - Header: indicador "modificado" + botão "Salvar" (disabled se limpo). Salva a linha selecionada (upsert) e dispara invalidate.
+  - Botão "+ Nova linha" cria no banco direto (não só local).
+  - Botão "Excluir" pede confirmação e chama delete.
+  - Toast de sucesso/erro com nome da linha.
+- `LinhasDeCuidado`: usa o mesmo hook para refletir mudanças do editor sem refresh.
+- Migration: triggers de audit também em `care_lines` (já cobre via padrão? validar e adicionar se faltar).
 
-  model text,                               -- ex: google/gemini-3-flash-preview
-  confidence_overall text,                  -- alta/media/baixa (média dos params)
+### Sprint 4 — StudioAdmin real (substituir mocks)
+- Substituir `mockUsers` por `profiles` + `user_roles` + `professionals` reais (hook novo `useTeamMembers` que faz join). Já existe `TeamManagement`; estender pra:
+  - Trocar role (admin only) → `useUpdateUserRole` (insert/delete em `user_roles`).
+  - Convidar usuário (admin) → edge function `invite-user` que chama `auth.admin.inviteUserByEmail`.
+  - Desativar (`professionals.ativo=false`).
+- Substituir `mockAudit` pelo último `audit_logs` (já existe `useAuditLogs`).
+- Substituir `mockPermissionsMatrix` por uma matriz **derivada** das RLS (estática, mas documentada num arquivo único `src/config/permissions.ts` que vira fonte da UI; deixar claro que é "visualização", a verdade está nas policies).
+- Card de "Regras de automação": CRUD usando `useAutomationRules` + novos `useCreate/Update/DeleteAutomationRule`.
 
-  applied boolean NOT NULL DEFAULT false,   -- true = gerou alerts/orientacoes
-  applied_at timestamptz,
-  applied_by uuid,                          -- user_id
+### Sprint 5 — Polimentos (DashboardGestor, DashboardPaciente, alertas)
+- `DashboardGestor`: substituir `mockAIInsights` por insights derivados de dados reais (top linhas com pior aderência, top pacientes em atraso, # de extrações IA recentes não revisadas).
+- `DashboardPaciente`:
+  - Card "Próxima consulta" → primeiro `appointments` futuro do paciente.
+  - Card "Questionários pendentes" com link pra responder.
+  - Card "Últimos exames" com download via attachments.
+- Página `/alertas` (não existe ainda): listagem global de `alerts`, filtros por severidade/lido, "marcar como lido" → `useUpdateAlert` (novo).
+- Trigger SQL: quando `parameter_records` insere valor fora da meta da linha do paciente, criar `alerts` automaticamente (substitui automação manual por DB-side).
 
-  replaces_id uuid REFERENCES public.clinical_extractions(id) ON DELETE SET NULL,
-  created_by uuid,                          -- user_id que rodou a extração
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+## Hooks novos a criar
 
-CREATE INDEX idx_clinical_extractions_patient ON public.clinical_extractions(patient_id) WHERE patient_id IS NOT NULL;
-CREATE INDEX idx_clinical_extractions_cpf ON public.clinical_extractions(cpf_normalized) WHERE cpf_normalized IS NOT NULL;
-CREATE INDEX idx_clinical_extractions_created ON public.clinical_extractions(created_at DESC);
-
-ALTER TABLE public.clinical_extractions ENABLE ROW LEVEL SECURITY;
-
--- SELECT: admin/manager veem tudo; professional vê o que ele criou OU de paciente que acessa
-CREATE POLICY "Extractions select" ON public.clinical_extractions
-  FOR SELECT TO authenticated
-  USING (
-    has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager')
-    OR created_by = auth.uid()
-    OR (patient_id IS NOT NULL AND can_access_patient(auth.uid(), patient_id))
-  );
-
--- INSERT: qualquer authenticated com role profissional+; obriga created_by = auth.uid()
-CREATE POLICY "Extractions insert" ON public.clinical_extractions
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    created_by = auth.uid()
-    AND (has_role(auth.uid(),'admin') OR has_role(auth.uid(),'manager') OR has_role(auth.uid(),'professional'))
-  );
-
--- UPDATE: admin/manager OU criador OU quem acessa o paciente (pra marcar applied)
-CREATE POLICY "Extractions update" ON public.clinical_extractions
-  FOR UPDATE TO authenticated
-  USING (
-    has_role(auth.uid(),'admin') OR has_role(auth.uid(),'manager')
-    OR created_by = auth.uid()
-    OR (patient_id IS NOT NULL AND can_access_patient(auth.uid(), patient_id))
-  );
-
--- DELETE: admin
-CREATE POLICY "Extractions delete" ON public.clinical_extractions
-  FOR DELETE TO authenticated USING (has_role(auth.uid(),'admin'));
+```
+useCreateOrientacao         (insert orientacoes)
+useCreateCareLine, useUpdateCareLine, useDeleteCareLine
+useCreate/Update/DeleteQuestionnaire + Items
+useUpdateQuestionnaireResponse
+useUploadAttachment         (storage + insert metadata)
+useUpdateAlert, useCreateAlert (manual)
+useCreate/Update/DeleteAutomationRule
+useTeamMembers              (profiles ⨝ user_roles ⨝ professionals)
+useUpdateUserRole           (admin only; revoga + adiciona)
+useInviteUser               (chama edge fn)
 ```
 
-### 1.2 Função `find_patient_by_cpf`
-Centraliza match (e respeita RLS).
+## Migrations
 
-```sql
-CREATE OR REPLACE FUNCTION public.find_patient_by_cpf(_cpf text)
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT id FROM public.patients
-  WHERE regexp_replace(cpf, '\D', '', 'g') = regexp_replace(_cpf, '\D', '', 'g')
-  LIMIT 1
-$$;
+```
+recalc_patient_risk(_patient_id uuid)   -- function: recalcula risk_level a partir de parameter_records vs goals
+audit_care_lines, audit_questionnaires, audit_automation_rules  -- triggers se faltarem
+trigger_param_alert                       -- função + trigger em parameter_records que insere alerts quando fora da meta
 ```
 
-### 1.3 Audit trigger
-Adiciona `clinical_extractions` ao `audit_trigger`.
+## Edge functions
 
-```sql
-CREATE TRIGGER audit_clinical_extractions
-AFTER INSERT OR UPDATE OR DELETE ON public.clinical_extractions
-FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+```
+invite-user                 -- admin convida via email (auth.admin.inviteUserByEmail)
+recalc-risk (opcional)      -- batch noturno; útil mas não bloqueante
 ```
 
-## 2. Edge Function nova: `apply-extraction`
+## Arquivos impactados (lista resumida)
 
-`supabase/functions/apply-extraction/index.ts`
-
-Recebe um `extraction_id`. Faz tudo server-side com SERVICE_ROLE pra garantir consistência (transação lógica), mas valida primeiro que o usuário **pode** acessar o paciente:
-
-```ts
-// Pseudocódigo
-1. Valida JWT (verify_jwt = false + validação manual via SUPABASE_JWKS).
-2. Carrega extraction (com client autenticado do user → respeita RLS).
-3. Se extraction.applied = true → 409.
-4. Se extraction.patient_id IS NULL → 400 "vincule um paciente primeiro".
-5. Verifica can_access_patient(user, patient_id) via .rpc.
-6. Para cada red_flag: insert em alerts (tipo='clinico', severidade='critical', mensagem, patient_id, data=hoje).
-7. Para cada highlight com severity='critico' que não vire param: insert em alerts (severidade='warning').
-8. Para cada suggested_next_step: insert em orientacoes (texto, profissional=user.full_name, data=hoje, patient_id).
-9. Para cada extracted_param com confidence='alta' E field reconhecido E value numérico:
-   insert em parameter_records (field, value, date=param.date||hoje, patient_id).
-10. Update extraction set applied=true, applied_at=now(), applied_by=user.id.
-11. Retorna { alerts: N, orientacoes: M, parameter_records: K }.
+```
+src/pages/Pacientes.tsx           (+ NewPatientDialog)
+src/pages/PerfilPaciente.tsx      (+ EditPatientDialog, RegisterParamDialog, AddOrientacaoDialog)
+src/pages/JornadaClinica.tsx      (+ ações da etapa, NewTaskDialog)
+src/pages/Consultas.tsx           (+ NewAppointmentDialog, AppointmentRowMenu)
+src/pages/Exames.tsx              (+ NewExamDialog, RegisterResultDialog)
+src/pages/Questionarios.tsx       (+ NewQuestionnaireDialog, RespondDialog)
+src/pages/EditorNoCode.tsx        (+ save bar, dirty state, delete confirm)
+src/pages/StudioAdmin.tsx         (- mocks, + dados reais, AutomationRulesCRUD)
+src/pages/DashboardGestor.tsx     (- mock, + insights derivados)
+src/pages/DashboardPaciente.tsx   (CTAs reais)
+src/pages/Alertas.tsx             (NOVA)
+src/components/dialogs/*          (NOVOS — patient, appointment, exam, task, param, etc.)
+src/hooks/useCareLines.ts         (+ mutations)
+src/hooks/useOrientacoes.ts       (+ create)
+src/hooks/useAlerts.ts            (+ update/create)
+src/hooks/useAutomationRules.ts   (+ mutations)
+src/hooks/useTeamMembers.ts       (NOVO)
+src/hooks/useAttachments.ts       (+ upload)
+src/config/permissions.ts         (NOVO — matriz visual)
+supabase/migrations/*             (3 migrations)
+supabase/functions/invite-user/   (NOVA)
 ```
 
-CORS, validação Zod do body `{ extraction_id: uuid }`, tratamento 401/403/404/409.
-
-## 3. Hooks novos
-
-### `useClinicalExtractionsDb.ts`
-```ts
-useExtractions(filter?: { patientId?, applied?, limit? }) // SELECT
-useSaveExtractions()        // batch INSERT a partir do estado da etapa 5
-useApplyExtraction()        // chama edge function
-useUnlinkExtraction()       // patient_id = null
-useLinkExtractionToPatient() // patient_id = X (com lookup CPF se quiser)
-```
-
-### Ajuste em `useClinicalExtraction.ts`
-Sem mudança estrutural — continua orquestrando IA. Só exporta `results` num formato fácil de mapear pra insert (já está).
-
-## 4. UI: 3 mudanças
-
-### 4.1 `ClinicalExtractionStep.tsx` — coluna "Vínculo" + ações de salvar
-
-Cada card de paciente ganha:
-
-- Badge no header esquerdo:
-  - 🟢 "Vinculado: João Silva" (se CPF da planilha bateu com paciente cadastrado)
-  - 🟡 "Sem vínculo (CPF não encontrado)"
-  - ⚪ "Sem CPF na planilha"
-- Botão "Vincular manualmente" (popover com busca de paciente por nome) quando 🟡 ou ⚪.
-- Quando expandido, ao final dos detalhes:
-  - Botão **"Salvar no prontuário"** (vira `clinical_extractions` row + chama `apply-extraction`).
-  - Se já salvo, mostra: "✓ Aplicado em DD/MM HH:mm — gerou X alertas, Y orientações" + botão "Ver no paciente" (link `/paciente/:id`).
-
-Toolbar acima da lista:
-- Contador "12 vinculados / 3 sem CPF / 5 sem match"
-- Botão **"Salvar e aplicar todos vinculados"** (loop processOne→insert→apply, com progresso)
-
-### 4.2 `PerfilPaciente.tsx` — aba/seção "Extrações IA"
-
-Nova seção (collapsible card) listando últimas 10 `clinical_extractions` desse paciente:
-- Data, modelo usado, sumário (1ª linha), badges de # red flags / # params, quem aplicou.
-- Click → modal expandido (mesmo layout do card da etapa 5) somente leitura.
-
-### 4.3 `JornadaClinica.tsx` — banner discreto
-
-Se houver extração não-aplicada ou recente (<7d) pro paciente: banner azul "1 extração IA pendente de revisão" com botão "Revisar".
-
-## 5. Fluxo do usuário (ponta a ponta)
-
-```text
-┌────────────────────────────────────────────────────────────┐
-│ 1. Upload planilha (.xlsx)                                 │
-│ 2. Etapas 1-3 (já existe)                                  │
-│ 3. Etapa 5: extração IA (já existe)                        │
-│ 4. Card por paciente mostra match com cadastro:            │
-│    - 12 vinculados (CPF bateu)                             │
-│    - 3 sem CPF na planilha                                 │
-│    - 5 com CPF mas sem cadastro                            │
-│ 5. Usuário revisa, opcionalmente vincula manual            │
-│ 6. Click "Salvar e aplicar todos vinculados":              │
-│    a) INSERT clinical_extractions (12 rows)                │
-│    b) edge fn apply-extraction × 12                        │
-│    c) Cada uma cria N alertas + M orientações + K params   │
-│ 7. Toast: "12 pacientes atualizados — 47 alertas, 30 ori-  │
-│    entações, 18 parâmetros gerados"                        │
-│ 8. Cada alerta aparece em /alertas e na Jornada Clínica    │
-│    do paciente. Cada orientação em /paciente/:id.          │
-└────────────────────────────────────────────────────────────┘
-```
-
-## 6. Edge cases
-
-| Caso | Tratamento |
-|---|---|
-| CPF inválido (menos que 11 dígitos) | Não tenta match. Marca como "sem CPF". |
-| Múltiplos pacientes com mesmo CPF | `find_patient_by_cpf` retorna o mais recente. Backend aceita; UI mostra warning "encontrados 2 cadastros, usando o mais recente". |
-| Profissional sem permissão no paciente vinculado | `can_access_patient` falha → toast "você não tem acesso a este paciente, peça vínculo ao gestor". Extração fica salva mas não aplicada. |
-| Reextração do mesmo CPF | Nova `clinical_extractions` com `replaces_id` apontando pra anterior. Aba do paciente lista as duas. |
-| Próximo passo duplicado entre upload e o que já existe em orientacoes | Aceitável nesta sprint (sem dedup). Anotação: futuro = comparar texto. |
-| Param extraído mas patient não tem `linha_cuidado` ativa | Insert vai mesmo assim (parameter_records permite). Apenas não aparecerá no painel de "fora da meta" dessa linha. |
-| Edge fn 5xx no meio do batch | Cada um é independente; UI retoma os faltantes. |
-
-## 7. Arquivos
-
-### Migrations
-- `20260427_clinical_extractions_table.sql` (tabela + RLS + índices)
-- `20260427_find_patient_by_cpf.sql` (função)
-- `20260427_audit_clinical_extractions.sql` (trigger)
-
-### Edge function
-- `supabase/functions/apply-extraction/index.ts` (nova)
-
-### Frontend
-- `src/hooks/useClinicalExtractionsDb.ts` (novo)
-- `src/components/shared/ClinicalExtractionStep.tsx` (badges de vínculo + botões salvar/aplicar; popover busca paciente)
-- `src/pages/PerfilPaciente.tsx` (nova seção "Extrações IA")
-- `src/pages/JornadaClinica.tsx` (banner pendente)
-- `src/integrations/supabase/types.ts` (regen automático)
-
-## 8. Riscos & mitigações
+## Risco / mitigação
 
 | Risco | Mitigação |
 |---|---|
-| Aplicar extração ruim gera spam de alertas | UI exige clique explícito por paciente OU "salvar todos vinculados". Nada automático. |
-| Conflito de versão (mesmo CPF aplicado 2x) | `replaces_id` mantém histórico. `applied=true` previne re-aplicar. |
-| Edge function lenta no batch | Client envia 3 paralelas (mesma `concurrency` da extração); progresso visível. |
-| RLS bloqueia leitura de extração antiga depois que profissional perde acesso | Esperado e correto. |
+| Forms grandes ficarem confusos | Cada dialog cobre 1 ação atômica; campos avançados em `<Collapsible>` |
+| Mutations dispararem RLS errada | Cada hook usa o usuário autenticado; testar como `professional` sem vínculo no paciente |
+| Recalcular risco a cada insert ficar lento | Função SQL leve + chamada apenas após insert/update do parâmetro |
+| Convite por email exigir SMTP | Cair no fluxo padrão do Supabase Auth (usa a própria infra) |
 
-## 9. Fora de escopo (próximas sprints)
+## Ordem de execução recomendada
 
-- Comparar uploads (delta entre extrações do mesmo paciente)
-- PDF/áudio multimodal
-- Dedup automática de orientações
-- Acionar `automation_rules` ao aplicar extração
+1. **Sprint 1** (pacientes + jornada) — desbloqueia o trabalho clínico real
+2. **Sprint 2** (consultas/exames/questionários) — preenche a operação do dia a dia
+3. **Sprint 3** (Editor + linhas) — gestores configuram o sistema
+4. **Sprint 4** (Studio real) — sai do "modo demo"
+5. **Sprint 5** (dashboards + alertas) — última camada de visibilidade
+
+Cada sprint é entregável independentemente. Comece pelo Sprint 1; ao aprovar, sigo direto para implementação.
+
+## Fora de escopo
+
+- Calendário visual (drag-drop) de consultas
+- Telemedicina embutida
+- Push notifications
+- Importação em lote de pacientes (já existe via planilha IA)
+- Integração com sistemas externos (HL7/FHIR)
