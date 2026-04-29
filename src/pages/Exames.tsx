@@ -1,15 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useExams } from '@/hooks/useExams';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { FlaskConical, Plus, AlertTriangle } from 'lucide-react';
+import { FlaskConical, Plus, AlertTriangle, FileEdit } from 'lucide-react';
 import { KPICard } from '@/components/shared/KPICard';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePatients } from '@/hooks/usePatients';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ExamFormDialog } from '@/components/dialogs/ExamFormDialog';
+import { ExamResultDialog } from '@/components/dialogs/ExamResultDialog';
 
 export default function Exames() {
   const { currentRole } = useAuth();
@@ -20,6 +22,8 @@ export default function Exames() {
   const baseData = exams || [];
 
   const [filterStatus, setFilterStatus] = useState('all');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<{ id: string; status: string } | null>(null);
 
   const pending = baseData.filter(e => e.status === 'solicitado' || e.status === 'atrasado');
   const delayed = baseData.filter(e => e.status === 'atrasado');
@@ -35,7 +39,7 @@ export default function Exames() {
           <h1 className="text-xl font-bold text-foreground">{isPatient ? 'Meus Exames' : 'Exames'}</h1>
           <p className="text-xs text-muted-foreground">{isPatient ? 'Seus exames e resultados' : 'Solicitações, resultados e pendências'}</p>
         </div>
-        {!isPatient && <Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> Solicitar Exame</Button>}
+        {!isPatient && <Button size="sm" className="gap-1" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Solicitar Exame</Button>}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -68,6 +72,7 @@ export default function Exames() {
               <TableHead className="hidden md:table-cell">Solicitação</TableHead>
               <TableHead className="hidden sm:table-cell">Resultado</TableHead>
               <TableHead>Status</TableHead>
+              {!isPatient && <TableHead className="text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -87,11 +92,23 @@ export default function Exames() {
                     {e.status === 'atrasado' && <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--destructive))] animate-pulse" />}
                   </div>
                 </TableCell>
+                {!isPatient && (
+                  <TableCell className="text-right">
+                    {e.status !== 'resultado_disponivel' && e.status !== 'cancelado' && (
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setEditing({ id: e.id, status: e.status })}>
+                        <FileEdit className="h-3 w-3" /> Atualizar
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {createOpen && <ExamFormDialog open={createOpen} onOpenChange={setCreateOpen} />}
+      {editing && <ExamResultDialog open={!!editing} onOpenChange={o => !o && setEditing(null)} examId={editing.id} currentStatus={editing.status} />}
     </div>
   );
 }
