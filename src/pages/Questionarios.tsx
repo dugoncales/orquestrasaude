@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { PenLine } from 'lucide-react';
+import { AnswerQuestionnaireDialog } from '@/components/dialogs/AnswerQuestionnaireDialog';
 import { useQuestionnaireResponses } from '@/hooks/useQuestionnaireResponses';
 import { useQuestionnaireItemCounts } from '@/hooks/useQuestionnaireItems';
 import { useCareLines } from '@/hooks/useCareLines';
@@ -84,6 +87,7 @@ export default function Questionarios() {
 }
 
 function QTable({ data, isPatient, careLines }: { data: any[]; isPatient: boolean; careLines: any[] }) {
+  const [answering, setAnswering] = useState<{ id: string; qid: string; name: string } | null>(null);
   return (
     <div className="rounded-xl border border-border overflow-hidden mt-4">
       <Table className="table-premium">
@@ -94,12 +98,14 @@ function QTable({ data, isPatient, careLines }: { data: any[]; isPatient: boolea
             <TableHead>Tipo</TableHead>
             <TableHead className="hidden sm:table-cell">Score</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.map(q => {
             const line = careLines.find(l => l.id === q.care_line_id);
             const pct = (q.max_score || 0) > 0 ? ((q.score || 0) / q.max_score) * 100 : 0;
+            const qName = (q as any).questionnaires?.name || 'Questionário';
 
             return (
               <TableRow key={q.id}>
@@ -110,7 +116,7 @@ function QTable({ data, isPatient, careLines }: { data: any[]; isPatient: boolea
                   </span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="default" className="text-[9px]">PROM</Badge>
+                  <Badge variant="default" className="text-[9px]">{(q as any).questionnaires?.tipo?.toUpperCase() || 'PROM'}</Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   {q.status === 'respondido' ? (
@@ -123,11 +129,23 @@ function QTable({ data, isPatient, careLines }: { data: any[]; isPatient: boolea
                   ) : '—'}
                 </TableCell>
                 <TableCell><StatusChip status={q.status} /></TableCell>
+                <TableCell className="text-right">
+                  {(q.status === 'pendente' || q.status === 'atrasado') && (
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1"
+                      onClick={() => setAnswering({ id: q.id, qid: q.questionnaire_id, name: qName })}>
+                      <PenLine className="h-3 w-3" /> Responder
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
+      {answering && (
+        <AnswerQuestionnaireDialog open={!!answering} onOpenChange={o => !o && setAnswering(null)}
+          responseId={answering.id} questionnaireId={answering.qid} questionnaireName={answering.name} />
+      )}
     </div>
   );
 }
