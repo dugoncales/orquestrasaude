@@ -1140,6 +1140,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      recalc_patient_risk: { Args: { _patient_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "patient" | "professional" | "manager" | "admin"

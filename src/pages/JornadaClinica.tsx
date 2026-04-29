@@ -27,9 +27,15 @@ import { AttachmentList } from '@/components/shared/AttachmentList';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Check, Clock, AlertTriangle, Lock, Circle, MapPin, TrendingUp, TrendingDown,
-  Activity, CalendarDays, ShieldAlert, Zap, Paperclip
+  Activity, CalendarDays, ShieldAlert, Zap, Paperclip, Plus, CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { useAdvanceJourneyStep, useUpdateJourneyStep } from '@/hooks/useJourneys';
+import { TaskFormDialog } from '@/components/dialogs/TaskFormDialog';
+import { AppointmentFormDialog } from '@/components/dialogs/AppointmentFormDialog';
+import { RegisterParameterDialog } from '@/components/dialogs/RegisterParameterDialog';
+import { toast } from 'sonner';
 
 const statusIcons: Record<string, any> = { nao_iniciado: Circle, em_andamento: Clock, concluido: Check, atrasado: AlertTriangle, bloqueado: Lock };
 
@@ -69,6 +75,12 @@ export default function JornadaClinica() {
   const queryPatientId = searchParams.get('paciente') || '';
   const [selectedPatientId, setSelectedPatientId] = useState(queryPatientId);
   const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null);
+  const [openTask, setOpenTask] = useState(false);
+  const [openAppt, setOpenAppt] = useState(false);
+  const [openParam, setOpenParam] = useState(false);
+  const [pendInput, setPendInput] = useState('');
+  const advanceStep = useAdvanceJourneyStep();
+  const updateStep = useUpdateJourneyStep();
 
   useEffect(() => {
     if (queryPatientId) setSelectedPatientId(queryPatientId);
@@ -372,7 +384,69 @@ export default function JornadaClinica() {
               {activeStepIndex === currentStepIndex ? 'Etapa Atual' : `Etapa #${activeStepIndex + 1}`} — {activeStep.name}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Barra de ações da etapa */}
+            <div className="flex flex-wrap gap-2 pb-3 border-b border-border">
+              {activeStepIndex === currentStepIndex && activeStep.status !== 'concluido' && (
+                <Button size="sm" variant="default" className="gap-1 h-8" onClick={async () => {
+                  try {
+                    await advanceStep.mutateAsync({ journeyId: journey.id, currentStepId: activeStep.id, currentIndex: currentStepIndex });
+                    toast.success('Etapa concluída');
+                  } catch (e: any) { toast.error(e?.message || 'Erro'); }
+                }}>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Concluir etapa
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="gap-1 h-8" onClick={() => setOpenAppt(true)}>
+                <Plus className="h-3.5 w-3.5" /> Agendar consulta
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1 h-8" onClick={() => setOpenTask(true)}>
+                <Plus className="h-3.5 w-3.5" /> Criar tarefa
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1 h-8" onClick={() => setOpenParam(true)}>
+                <Plus className="h-3.5 w-3.5" /> Registrar parâmetro
+              </Button>
+            </div>
+
+            {/* Pendências da etapa */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Pendências</p>
+              {(activeStep.pendencias || []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma pendência</p>
+              ) : (
+                <ul className="space-y-1">
+                  {activeStep.pendencias.map((p, i) => (
+                    <li key={i} className="text-xs flex items-center justify-between gap-2 bg-muted/30 rounded px-2 py-1.5">
+                      <span className="flex-1">⚠ {p}</span>
+                      <button
+                        className="text-[10px] text-muted-foreground hover:text-destructive"
+                        onClick={async () => {
+                          const next = activeStep.pendencias.filter((_, idx) => idx !== i);
+                          try { await updateStep.mutateAsync({ id: activeStep.id, pendencias: next }); toast.success('Pendência removida'); }
+                          catch (e: any) { toast.error(e?.message || 'Erro'); }
+                        }}
+                      >Resolver</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 h-8 rounded-md border border-border bg-background px-2 text-xs"
+                  placeholder="Adicionar pendência..."
+                  value={pendInput}
+                  onChange={e => setPendInput(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter' && pendInput.trim()) {
+                      const next = [...(activeStep.pendencias || []), pendInput.trim()];
+                      try { await updateStep.mutateAsync({ id: activeStep.id, pendencias: next }); setPendInput(''); toast.success('Pendência adicionada'); }
+                      catch (err: any) { toast.error(err?.message || 'Erro'); }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
             <ActionPanel
               step={activeStep}
               nextStep={nextStep}
@@ -460,6 +534,10 @@ export default function JornadaClinica() {
           </Card>
         </div>
       </div>
+
+      <TaskFormDialog open={openTask} onOpenChange={setOpenTask} patientId={patient.id} patientName={patient.nome} careLineId={journey.care_line_id} journeyStepId={activeStep.id} />
+      <AppointmentFormDialog open={openAppt} onOpenChange={setOpenAppt} defaultPatientId={patient.id} careLineId={journey.care_line_id} journeyStepId={activeStep.id} />
+      <RegisterParameterDialog open={openParam} onOpenChange={setOpenParam} patientId={patient.id} careLineId={journey.care_line_id} />
     </div>
   );
 }

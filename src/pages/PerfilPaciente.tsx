@@ -22,6 +22,12 @@ import {
   Calendar, FlaskConical, CheckSquare, AlertTriangle, Paperclip,
 } from 'lucide-react';
 import { AttachmentList } from '@/components/shared/AttachmentList';
+import { PatientExtractionsList } from '@/components/shared/PatientExtractionsList';
+import { PatientFormDialog } from '@/components/dialogs/PatientFormDialog';
+import { RegisterParameterDialog } from '@/components/dialogs/RegisterParameterDialog';
+import { AddOrientacaoDialog } from '@/components/dialogs/AddOrientacaoDialog';
+import { useOrientacoes } from '@/hooks/useOrientacoes';
+import { Pencil, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
 
@@ -70,6 +76,11 @@ export default function PerfilPaciente() {
   const { data: careLinesData } = useCareLines();
 
   const [filter, setFilter] = useState<TimelineFilter>('todos');
+  const [openEdit, setOpenEdit] = useState(false);
+  const [openParam, setOpenParam] = useState(false);
+  const [openOrient, setOpenOrient] = useState(false);
+  const { data: orientacoesData } = useOrientacoes(id);
+  const orientacoes = orientacoesData || [];
 
   const journeys = journeysData || [];
   const appointments = appointmentsData || [];
@@ -183,6 +194,17 @@ export default function PerfilPaciente() {
               <span key={l.id} className="status-chip text-[10px]" style={{ background: l.color + '22', color: l.color }}>{l.name}</span>
             ))}
           </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => setOpenEdit(true)}>
+            <Pencil className="h-3 w-3" /> Editar
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => setOpenParam(true)}>
+            <Plus className="h-3 w-3" /> Parâmetro
+          </Button>
+          <Button size="sm" variant="secondary" className="gap-1" onClick={() => setOpenOrient(true)}>
+            <Plus className="h-3 w-3" /> Orientação
+          </Button>
         </div>
       </div>
 
@@ -363,6 +385,34 @@ export default function PerfilPaciente() {
           <AttachmentList patientId={patient.id} compact />
         </CardContent>
       </Card>
+
+      {/* Orientações */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm">Orientações</CardTitle>
+          <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setOpenOrient(true)}>
+            <Plus className="h-3 w-3" /> Nova
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {orientacoes.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma orientação registrada</p>
+          ) : (
+            <div className="space-y-2">
+              {orientacoes.slice(0, 8).map(o => (
+                <div key={o.id} className="border-l-2 border-primary/40 pl-3 py-1.5">
+                  <p className="text-xs text-foreground">{o.texto}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatDateBR(o.data)} · {o.profissional}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <PatientFormDialog open={openEdit} onOpenChange={setOpenEdit} patient={patient} />
+      <RegisterParameterDialog open={openParam} onOpenChange={setOpenParam} patientId={patient.id} />
+      <AddOrientacaoDialog open={openOrient} onOpenChange={setOpenOrient} patientId={patient.id} />
     </div>
   );
 }

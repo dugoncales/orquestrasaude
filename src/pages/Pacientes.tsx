@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RiskLevel } from '@/data/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { mapCareLine, riskLevel } from '@/lib/db-helpers';
+import { PatientFormDialog } from '@/components/dialogs/PatientFormDialog';
 
 const riskBorderColors: Record<RiskLevel, string> = {
   baixo: 'border-l-[hsl(var(--success))]',
@@ -31,6 +32,7 @@ export default function Pacientes() {
   const [search, setSearch] = useState('');
   const [filterLine, setFilterLine] = useState('all');
   const [filterRisk, setFilterRisk] = useState('all');
+  const [openNew, setOpenNew] = useState(false);
 
   const riskCounts = {
     critico: safePatients.filter(p => p.risk_level === 'critico').length,
@@ -55,7 +57,7 @@ export default function Pacientes() {
           <h1 className="text-xl font-bold text-foreground">Pacientes</h1>
           <p className="text-xs text-muted-foreground">{safePatients.length} pacientes cadastrados</p>
         </div>
-        <Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> Novo Paciente</Button>
+        <Button size="sm" className="gap-1" onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" /> Novo Paciente</Button>
       </div>
 
       <div className="flex gap-2 flex-wrap">
@@ -137,6 +139,12 @@ export default function Pacientes() {
           </TableBody>
         </Table>
       </div>
+
+      <PatientFormDialog
+        open={openNew}
+        onOpenChange={setOpenNew}
+        onSaved={(id) => navigate(`/pacientes/${id}`)}
+      />
     </div>
   );
 }
