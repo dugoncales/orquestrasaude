@@ -22,6 +22,12 @@ import {
   Calendar, FlaskConical, CheckSquare, AlertTriangle, Paperclip,
 } from 'lucide-react';
 import { AttachmentList } from '@/components/shared/AttachmentList';
+import { PatientExtractionsList } from '@/components/shared/PatientExtractionsList';
+import { PatientFormDialog } from '@/components/dialogs/PatientFormDialog';
+import { RegisterParameterDialog } from '@/components/dialogs/RegisterParameterDialog';
+import { AddOrientacaoDialog } from '@/components/dialogs/AddOrientacaoDialog';
+import { useOrientacoes } from '@/hooks/useOrientacoes';
+import { Pencil, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
 
