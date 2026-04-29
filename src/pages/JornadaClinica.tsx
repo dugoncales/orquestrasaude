@@ -27,9 +27,15 @@ import { AttachmentList } from '@/components/shared/AttachmentList';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Check, Clock, AlertTriangle, Lock, Circle, MapPin, TrendingUp, TrendingDown,
-  Activity, CalendarDays, ShieldAlert, Zap, Paperclip
+  Activity, CalendarDays, ShieldAlert, Zap, Paperclip, Plus, CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { useAdvanceJourneyStep, useUpdateJourneyStep } from '@/hooks/useJourneys';
+import { TaskFormDialog } from '@/components/dialogs/TaskFormDialog';
+import { AppointmentFormDialog } from '@/components/dialogs/AppointmentFormDialog';
+import { RegisterParameterDialog } from '@/components/dialogs/RegisterParameterDialog';
+import { toast } from 'sonner';
 
 const statusIcons: Record<string, any> = { nao_iniciado: Circle, em_andamento: Clock, concluido: Check, atrasado: AlertTriangle, bloqueado: Lock };
 
@@ -69,6 +75,12 @@ export default function JornadaClinica() {
   const queryPatientId = searchParams.get('paciente') || '';
   const [selectedPatientId, setSelectedPatientId] = useState(queryPatientId);
   const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null);
+  const [openTask, setOpenTask] = useState(false);
+  const [openAppt, setOpenAppt] = useState(false);
+  const [openParam, setOpenParam] = useState(false);
+  const [pendInput, setPendInput] = useState('');
+  const advanceStep = useAdvanceJourneyStep();
+  const updateStep = useUpdateJourneyStep();
 
   useEffect(() => {
     if (queryPatientId) setSelectedPatientId(queryPatientId);
