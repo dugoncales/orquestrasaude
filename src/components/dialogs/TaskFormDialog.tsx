@@ -20,8 +20,8 @@ type Props = {
 
 export function TaskFormDialog({ open, onOpenChange, patientId, patientName, careLineId, journeyStepId }: Props) {
   const create = useCreateTask();
-  const { user } = useAuth();
-  const profName = (user?.user_metadata as any)?.full_name || user?.email || 'Profissional';
+  const { user, profile } = useAuth();
+  const profName = profile?.full_name || user?.email || 'Profissional';
 
   const [tipo, setTipo] = useState('Acompanhamento');
   const [descricao, setDescricao] = useState('');

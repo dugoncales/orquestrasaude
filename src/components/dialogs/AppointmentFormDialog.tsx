@@ -22,12 +22,12 @@ type Props = {
 export function AppointmentFormDialog({ open, onOpenChange, defaultPatientId, careLineId, journeyStepId }: Props) {
   const { data: patients } = usePatients();
   const { data: careLines } = useCareLines();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const create = useCreateAppointment();
 
   const [patientId, setPatientId] = useState(defaultPatientId || '');
   const [tipo, setTipo] = useState('Consulta médica');
-  const [profissional, setProfissional] = useState((user?.user_metadata as any)?.full_name || user?.email || '');
+  const [profissional, setProfissional] = useState(profile?.full_name || user?.email || '');
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
   const [hora, setHora] = useState('09:00');
   const [careLine, setCareLine] = useState<string>(careLineId || 'none');

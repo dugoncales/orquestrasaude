@@ -12,8 +12,8 @@ type Props = { open: boolean; onOpenChange: (o: boolean) => void; patientId: str
 
 export function AddOrientacaoDialog({ open, onOpenChange, patientId }: Props) {
   const create = useCreateOrientacao();
-  const { user } = useAuth();
-  const profName = (user?.user_metadata as any)?.full_name || user?.email || 'Profissional';
+  const { user, profile } = useAuth();
+  const profName = profile?.full_name || user?.email || 'Profissional';
   const [texto, setTexto] = useState('');
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
