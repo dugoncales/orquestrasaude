@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { useAppointments } from '@/hooks/useAppointments';
+import { useAppointments, useUpdateAppointmentStatus } from '@/hooks/useAppointments';
 import { usePatients } from '@/hooks/usePatients';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, Plus } from 'lucide-react';
+import { Calendar, Plus, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AppointmentFormDialog } from '@/components/dialogs/AppointmentFormDialog';
+import { toast } from 'sonner';
 
 export default function Consultas() {
   const { currentRole } = useAuth();
@@ -16,8 +18,10 @@ export default function Consultas() {
   const { data: patients } = usePatients();
   const patientId = isPatient ? (patients?.[0]?.id || undefined) : undefined;
   const { data: appointments, isLoading } = useAppointments(patientId);
+  const update = useUpdateAppointmentStatus();
   const baseData = appointments || [];
 
+  const [open, setOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterProf, setFilterProf] = useState('all');
 
@@ -31,6 +35,13 @@ export default function Consultas() {
     return matchStatus && matchProf;
   });
 
+  async function setStatus(id: string, status: string) {
+    try {
+      await update.mutateAsync({ id, status });
+      toast.success(`Consulta marcada como ${status}`);
+    } catch (e: any) { toast.error(e?.message || 'Erro'); }
+  }
+
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-32 w-full" /></div>;
 
   return (
@@ -40,7 +51,7 @@ export default function Consultas() {
           <h1 className="text-xl font-bold text-foreground">{isPatient ? 'Minhas Consultas' : 'Consultas'}</h1>
           <p className="text-xs text-muted-foreground">{isPatient ? 'Suas consultas e agenda' : 'Agenda e acompanhamento'}</p>
         </div>
-        {!isPatient && <Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> Nova Consulta</Button>}
+        {!isPatient && <Button size="sm" className="gap-1" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Nova Consulta</Button>}
       </div>
 
       <Card className="border-l-2 border-l-primary bg-gradient-to-r from-primary/[0.03] to-transparent">
@@ -58,7 +69,12 @@ export default function Consultas() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusChip status={a.status} />
-                    {!isPatient && a.status === 'agendada' && <Button size="sm" className="h-7 text-xs">Iniciar</Button>}
+                    {!isPatient && a.status === 'agendada' && (
+                      <>
+                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setStatus(a.id, 'realizada')}><CheckCircle2 className="h-3 w-3" /> Realizar</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setStatus(a.id, 'faltou')}><XCircle className="h-3 w-3" /> Faltou</Button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -99,6 +115,7 @@ export default function Consultas() {
               <TableHead className="hidden md:table-cell">Tipo</TableHead>
               <TableHead className="hidden sm:table-cell">Profissional</TableHead>
               <TableHead>Status</TableHead>
+              {!isPatient && <TableHead className="text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -110,11 +127,23 @@ export default function Consultas() {
                 <TableCell className="text-sm hidden md:table-cell">{a.tipo}</TableCell>
                 <TableCell className="text-sm hidden sm:table-cell">{a.profissional}</TableCell>
                 <TableCell><StatusChip status={a.status} /></TableCell>
+                {!isPatient && (
+                  <TableCell className="text-right">
+                    {a.status === 'agendada' && (
+                      <div className="flex gap-1 justify-end">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setStatus(a.id, 'realizada')}><CheckCircle2 className="h-3 w-3" /> Realizar</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => setStatus(a.id, 'reagendada')}><RotateCcw className="h-3 w-3" /> Reagendar</Button>
+                      </div>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {open && <AppointmentFormDialog open={open} onOpenChange={setOpen} />}
     </div>
   );
 }
