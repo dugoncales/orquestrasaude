@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RiskLevel } from '@/data/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { mapCareLine, riskLevel } from '@/lib/db-helpers';
+import { PatientFormDialog } from '@/components/dialogs/PatientFormDialog';
 
 const riskBorderColors: Record<RiskLevel, string> = {
   baixo: 'border-l-[hsl(var(--success))]',
