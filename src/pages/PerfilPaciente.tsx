@@ -195,6 +195,17 @@ export default function PerfilPaciente() {
             ))}
           </div>
         </div>
+        <div className="flex flex-col gap-2">
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => setOpenEdit(true)}>
+            <Pencil className="h-3 w-3" /> Editar
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => setOpenParam(true)}>
+            <Plus className="h-3 w-3" /> Parâmetro
+          </Button>
+          <Button size="sm" variant="secondary" className="gap-1" onClick={() => setOpenOrient(true)}>
+            <Plus className="h-3 w-3" /> Orientação
+          </Button>
+        </div>
       </div>
 
       {/* Situação Atual */}
