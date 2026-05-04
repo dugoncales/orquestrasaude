@@ -9,15 +9,20 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Users, Shield, Settings, FileText, Plus, Check, X, GripVertical,
-  GitBranch, Route, FlaskConical, ClipboardList, Zap, Activity,
+  Users, Plus, Check, X, GripVertical,
+  GitBranch, FlaskConical, ClipboardList, Zap, Activity,
   Heart, Scale, Droplets, Brain, Wind
 } from 'lucide-react';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { TeamManagement } from '@/components/admin/TeamManagement';
+import { InviteUserDialog } from '@/components/dialogs/InviteUserDialog';
 import { useCareLines } from '@/hooks/useCareLines';
 import { useAutomationRules } from '@/hooks/useAutomationRules';
+import { useTeamMembers, useSetUserRole } from '@/hooks/useTeamMembers';
+import { useAuditLogs } from '@/hooks/useAuditLogs';
+import { useAuth } from '@/contexts/AuthContext';
 import { mapCareLine } from '@/lib/db-helpers';
 import { parameterDictionary } from '@/data/parameters';
 import { toast } from 'sonner';
