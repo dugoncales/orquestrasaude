@@ -72,10 +72,16 @@ const modules = ['Dashboard', 'Pacientes', 'Jornadas', 'Linhas de Cuidado', 'Con
 const roles = ['admin', 'manager', 'professional', 'patient'];
 
 export default function StudioAdmin() {
+  const { roles: myRoles } = useAuth();
+  const isAdmin = myRoles.includes('admin');
   const { data: careLinesData, isLoading: loadingCL } = useCareLines();
   const { data: automationRulesData, isLoading: loadingAR } = useAutomationRules();
+  const { data: teamMembers, isLoading: loadingTM } = useTeamMembers();
+  const { data: auditLogs, isLoading: loadingAudit } = useAuditLogs({ limit: 200 });
+  const setRoleMut = useSetUserRole();
   const [paramGroupFilter, setParamGroupFilter] = useState<string>('todos');
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const careLines = (careLinesData || []).map(mapCareLine);
   const automationRules = (automationRulesData || []).map(r => ({
@@ -89,6 +95,15 @@ export default function StudioAdmin() {
 
   const paramGroups = ['todos', ...Array.from(new Set(parameterDictionary.map(p => p.group)))];
   const filteredParams = paramGroupFilter === 'todos' ? parameterDictionary : parameterDictionary.filter(p => p.group === paramGroupFilter);
+
+  const toggleRole = async (userId: string, role: 'admin' | 'manager' | 'professional' | 'patient', has: boolean) => {
+    try {
+      await setRoleMut.mutateAsync({ userId, role, enabled: !has });
+      toast.success('Papel atualizado');
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao alterar papel');
+    }
+  };
 
   if (loadingCL || loadingAR) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
 
