@@ -29,23 +29,6 @@ import { toast } from 'sonner';
 
 const iconMap: Record<string, any> = { Activity, Heart, Scale, Droplets, Brain, Wind };
 
-const mockUsers = [
-  { name: 'Dra. Ana Beatriz', email: 'ana@clinica.com', role: 'professional', status: 'ativo', lastAccess: '2025-04-14' },
-  { name: 'Dr. Ricardo Mendes', email: 'ricardo@clinica.com', role: 'professional', status: 'ativo', lastAccess: '2025-04-14' },
-  { name: 'Enf. Carla', email: 'carla@clinica.com', role: 'professional', status: 'ativo', lastAccess: '2025-04-13' },
-  { name: 'Dr. Fernando Gestão', email: 'fernando@clinica.com', role: 'manager', status: 'ativo', lastAccess: '2025-04-12' },
-  { name: 'Admin Sistema', email: 'admin@carejourney.com', role: 'admin', status: 'ativo', lastAccess: '2025-04-14' },
-];
-
-const mockAudit = [
-  { date: '2025-04-14 10:32', user: 'Dra. Ana Beatriz', action: 'Atualizou parâmetros de Roberto Almeida Lima' },
-  { date: '2025-04-14 09:15', user: 'Admin Sistema', action: 'Criou nova regra de automação: Diabetes fora da meta' },
-  { date: '2025-04-13 16:45', user: 'Enf. Carla', action: 'Registrou busca ativa para Fernanda Costa Ribeiro' },
-  { date: '2025-04-13 14:20', user: 'Dr. Fernando Gestão', action: 'Exportou relatório BI executivo' },
-  { date: '2025-04-12 11:30', user: 'Admin Sistema', action: 'Alterou permissões do perfil Gestor' },
-  { date: '2025-04-12 09:00', user: 'Dra. Ana Beatriz', action: 'Incluiu paciente Carlos Eduardo na linha de Obesidade' },
-];
-
 const mockPermissionsMatrix: Record<string, Record<string, boolean>> = {
   admin: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: true, IA: true, Studio: true, Editor: true },
   manager: { Dashboard: true, Pacientes: true, Jornadas: true, 'Linhas de Cuidado': true, Consultas: true, Exames: true, Questionários: true, BI: true, IA: true, Studio: false, Editor: false },
