@@ -115,7 +115,7 @@ export default function StudioAdmin() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard title="Usuários Ativos" value={mockUsers.length} icon={Users} accentColor="primary" />
+        <KPICard title="Usuários Ativos" value={(teamMembers || []).length} icon={Users} accentColor="primary" />
         <KPICard title="Linhas de Cuidado" value={careLines.length} icon={GitBranch} accentColor="info" />
         <KPICard title="Regras de Automação" value={automationRules.length} icon={Zap} accentColor="warning" />
         <KPICard title="Parâmetros Clínicos" value={parameterDictionary.length} icon={FlaskConical} accentColor="success" />
@@ -139,41 +139,75 @@ export default function StudioAdmin() {
 
         <TabsContent value="users" className="mt-4">
           <div className="flex justify-end mb-3">
-            <Button size="sm" className="gap-1" onClick={() => toast.success('Formulário de novo usuário aberto')}><Plus className="h-4 w-4" /> Novo Usuário</Button>
+            <Button size="sm" className="gap-1" disabled={!isAdmin} onClick={() => setInviteOpen(true)}>
+              <Plus className="h-4 w-4" /> Convidar Usuário
+            </Button>
           </div>
-          <div className="rounded-xl border border-border overflow-hidden">
-            <Table className="table-premium">
-              <TableHeader><TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead className="hidden sm:table-cell">Email</TableHead>
-                <TableHead>Perfil</TableHead>
-                <TableHead className="hidden md:table-cell">Último Acesso</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {mockUsers.map((u, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
-                          {u.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
-                        </div>
-                        <span className="text-sm font-medium">{u.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm hidden sm:table-cell text-muted-foreground">{u.email}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${roleBadgeColor[u.role]}`}>
-                        {roleLabel[u.role]}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm hidden md:table-cell text-muted-foreground">{u.lastAccess}</TableCell>
-                    <TableCell><StatusChip status="concluido" /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {!isAdmin && (
+            <p className="text-xs text-muted-foreground mb-3">
+              Você está vendo apenas seu próprio perfil. Apenas administradores listam todos os usuários.
+            </p>
+          )}
+          {loadingTM ? <Skeleton className="h-40 w-full" /> : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <Table className="table-premium">
+                <TableHeader><TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead className="hidden sm:table-cell">Email</TableHead>
+                  <TableHead>Papéis</TableHead>
+                  <TableHead className="hidden md:table-cell">Criado em</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {(teamMembers || []).length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-6">Nenhum usuário encontrado</TableCell></TableRow>
+                  ) : (teamMembers || []).map((u) => {
+                    const name = u.full_name || u.email || u.id.slice(0, 8);
+                    return (
+                      <TableRow key={u.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                              {name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                            </div>
+                            <span className="text-sm font-medium">{name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm hidden sm:table-cell text-muted-foreground">{u.email || '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {u.roles.length === 0 && <span className="text-[10px] text-muted-foreground">Sem papel</span>}
+                            {u.roles.map(r => (
+                              <span key={r} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${roleBadgeColor[r]}`}>
+                                {roleLabel[r]}
+                              </span>
+                            ))}
+                          </div>
+                          {isAdmin && (
+                            <div className="flex flex-wrap gap-2 mt-1.5">
+                              {(['admin','manager','professional','patient'] as const).map(r => (
+                                <label key={r} className="flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer">
+                                  <Checkbox
+                                    checked={u.roles.includes(r)}
+                                    onCheckedChange={() => toggleRole(u.id, r, u.roles.includes(r))}
+                                    className="h-3 w-3"
+                                  /> {roleLabel[r]}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm hidden md:table-cell text-muted-foreground">
+                          {u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '—'}
+                        </TableCell>
+                        <TableCell><StatusChip status="concluido" /></TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="team" className="mt-4">
