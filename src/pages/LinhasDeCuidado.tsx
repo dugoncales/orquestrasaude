@@ -108,7 +108,7 @@ export default function LinhasDeCuidado() {
           <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={() => exportCSV(filteredLines)}>
             <Download className="h-3 w-3" /> Exportar
           </Button>
-          <Button size="sm" className="gap-1" onClick={() => navigate('/editor-no-code')}>
+          <Button size="sm" className="gap-1" onClick={() => navigate('/editor')}>
             <Plus className="h-4 w-4" /> Nova Linha
           </Button>
         </div>
