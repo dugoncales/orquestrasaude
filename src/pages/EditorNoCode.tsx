@@ -5,21 +5,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import {
-  Plus, Copy, Trash2, GripVertical, ChevronRight, Settings, Activity,
+  Plus, Copy, Trash2, GripVertical, Settings, Activity,
   Heart, Brain, Stethoscope, Baby, Bone, PanelRightClose, PanelRightOpen,
-  Target, ClipboardList, AlertTriangle, BarChart3, ListChecks, Beaker,
-  Zap, FileText, ArrowUp, ArrowDown, Save
+  Target, AlertTriangle, BarChart3, ListChecks, Beaker,
+  Zap, FileText, Save, Loader2
 } from 'lucide-react';
-import { useCareLines } from '@/hooks/useCareLines';
+import { useCareLines, useCreateCareLine, useUpdateCareLine, useDeleteCareLine } from '@/hooks/useCareLines';
 import { mapCareLine } from '@/lib/db-helpers';
-import { CareLine, CareLineMeta, CareLineTarefa, CareLineExame, CareLineAutomacao, CareLineAlerta } from '@/data/types';
+import { CareLine } from '@/data/types';
 
 const iconMap: Record<string, React.ElementType> = { Activity, Heart, Brain, Stethoscope, Baby, Bone };
 const iconOptions = ['Activity', 'Heart', 'Brain', 'Stethoscope', 'Baby', 'Bone'];
@@ -34,23 +32,58 @@ const defaultSteps = [
   'Reavaliação', 'Manutenção ou Intensificação', 'Alta ou Monitoramento'
 ];
 
+const NEW_PREFIX = 'new_';
+const isNewId = (id: string) => id.startsWith(NEW_PREFIX);
+
+function slugify(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || `linha-${Date.now()}`;
+}
+
 function createEmptyLine(): CareLine {
   const now = Date.now();
   return {
-    id: `linha_${now}`, slug: `linha-${now}`, name: 'Nova Linha de Cuidado', icon: 'Activity',
+    id: `${NEW_PREFIX}${now}`, slug: `linha-${now}`, name: 'Nova Linha de Cuidado', icon: 'Activity',
     color: 'hsl(200, 80%, 50%)', clinicalParameters: [], proms: [], prems: [],
     patientCount: 0, avgAdherence: 0, criteriosInclusao: [], criteriosSaida: [],
     metas: [], tarefasPadrao: [], examesPadrao: [], automacoes: [], alertas: [], indicadoresBI: [],
   };
 }
 
+function toDbPayload(line: CareLine) {
+  return {
+    name: line.name,
+    slug: line.slug || slugify(line.name),
+    icon: line.icon,
+    color: line.color,
+    clinical_parameters: line.clinicalParameters,
+    proms: line.proms,
+    prems: line.prems,
+    criterios_inclusao: line.criteriosInclusao,
+    criterios_saida: line.criteriosSaida,
+    metas: line.metas as unknown as never,
+    tarefas_padrao: line.tarefasPadrao as unknown as never,
+    exames_padrao: line.examesPadrao as unknown as never,
+    automacoes: line.automacoes as unknown as never,
+    alertas: line.alertas as unknown as never,
+    indicadores_bi: (line.indicadoresBI || []) as unknown as never,
+  };
+}
+
 export default function EditorNoCode() {
   const { data: careLinesData, isLoading } = useCareLines();
+  const createMut = useCreateCareLine();
+  const updateMut = useUpdateCareLine();
+  const deleteMut = useDeleteCareLine();
+
   const initialLines = useMemo(() => (careLinesData || []).map(r => ({ ...mapCareLine(r), indicadoresBI: mapCareLine(r).indicadoresBI || [] })), [careLinesData]);
   const [lines, setLines] = useState<CareLine[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [selectedId, setSelectedId] = useState<string>('');
   const [showPreview, setShowPreview] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
   if (!initialized && initialLines.length > 0) {
     setLines(initialLines);
@@ -63,28 +96,75 @@ export default function EditorNoCode() {
   const selected = lines.find(l => l.id === selectedId);
   const updateLine = (updates: Partial<CareLine>) => {
     setLines(prev => prev.map(l => l.id === selectedId ? { ...l, ...updates } : l));
+    setDirty(true);
   };
   const addLine = () => {
     const nl = createEmptyLine();
     setLines(prev => [...prev, nl]);
     setSelectedId(nl.id);
-    toast.success('Linha criada');
+    setDirty(true);
+    toast.success('Linha criada (não salva)');
   };
   const duplicateLine = (id: string) => {
     const src = lines.find(l => l.id === id);
     if (!src) return;
-    const dup = { ...src, id: `${src.id}_copy_${Date.now()}`, name: `${src.name} (cópia)` };
+    const newId = `${NEW_PREFIX}${Date.now()}`;
+    const dup = { ...src, id: newId, slug: `${src.slug}-copy-${Date.now()}`, name: `${src.name} (cópia)` };
     setLines(prev => [...prev, dup]);
-    setSelectedId(dup.id);
-    toast.success('Linha duplicada');
+    setSelectedId(newId);
+    setDirty(true);
+    toast.success('Linha duplicada (não salva)');
   };
   const deleteLine = (id: string) => {
     setLines(prev => prev.filter(l => l.id !== id));
-    if (selectedId === id) setSelectedId(lines[0]?.id || '');
-    toast.success('Linha removida');
+    if (!isNewId(id)) setPendingDeletes(prev => [...prev, id]);
+    if (selectedId === id) setSelectedId(lines.find(l => l.id !== id)?.id || '');
+    setDirty(true);
+    toast.success('Linha removida (será aplicada ao salvar)');
   };
 
-  if (!selected) return null;
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Deletes
+      for (const id of pendingDeletes) {
+        await deleteMut.mutateAsync(id);
+      }
+      // Creates + Updates
+      for (const line of lines) {
+        const payload = toDbPayload(line);
+        if (isNewId(line.id)) {
+          await createMut.mutateAsync(payload);
+        } else {
+          // Compare against initial to skip unchanged
+          const orig = initialLines.find(l => l.id === line.id);
+          if (!orig || JSON.stringify(orig) !== JSON.stringify(line)) {
+            await updateMut.mutateAsync({ id: line.id, updates: payload });
+          }
+        }
+      }
+      setPendingDeletes([]);
+      setDirty(false);
+      setInitialized(false); // force re-sync from new data
+      toast.success('Linhas de cuidado salvas');
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!selected) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground">Editor No-Code</h1>
+          <Button size="sm" onClick={addLine} className="gap-1"><Plus className="h-4 w-4" /> Nova Linha</Button>
+        </div>
+        <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">Nenhuma linha cadastrada. Clique em "Nova Linha" para começar.</CardContent></Card>
+      </div>
+    );
+  }
   const Icon = iconMap[selected.icon] || Activity;
 
   return (
@@ -92,14 +172,17 @@ export default function EditorNoCode() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Editor No-Code</h1>
-          <p className="text-xs text-muted-foreground">Configure linhas de cuidado sem programação</p>
+          <p className="text-xs text-muted-foreground">
+            Configure linhas de cuidado sem programação
+            {dirty && <span className="ml-2 text-amber-500">• Alterações não salvas</span>}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)}>
             {showPreview ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
           </Button>
-          <Button size="sm" onClick={() => toast.success('Alterações salvas')} className="gap-1">
-            <Save className="h-4 w-4" /> Salvar
+          <Button size="sm" onClick={handleSave} disabled={!dirty || saving} className="gap-1">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
           </Button>
         </div>
       </div>
@@ -123,6 +206,7 @@ export default function EditorNoCode() {
                       }`}>
                       <LIcon className="h-3.5 w-3.5 flex-shrink-0" style={{ color: line.color }} />
                       <span className="flex-1 truncate text-foreground">{line.name}</span>
+                      {isNewId(line.id) && <Badge variant="secondary" className="h-4 px-1 text-[8px]">novo</Badge>}
                       <div className="hidden group-hover:flex gap-0.5">
                         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={e => { e.stopPropagation(); duplicateLine(line.id); }}><Copy className="h-3 w-3" /></Button>
                         <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={e => { e.stopPropagation(); deleteLine(line.id); }}><Trash2 className="h-3 w-3" /></Button>
@@ -164,6 +248,10 @@ export default function EditorNoCode() {
                   <Input value={selected.name} onChange={e => updateLine({ name: e.target.value })} className="h-9 text-sm" />
                 </div>
                 <div className="space-y-2">
+                  <Label className="text-xs">Slug (URL)</Label>
+                  <Input value={selected.slug} onChange={e => updateLine({ slug: slugify(e.target.value) })} className="h-9 text-sm font-mono" />
+                </div>
+                <div className="space-y-2">
                   <Label className="text-xs">Ícone</Label>
                   <div className="flex gap-2 flex-wrap">
                     {iconOptions.map(ic => {
@@ -191,7 +279,7 @@ export default function EditorNoCode() {
 
               <TabsContent value="etapas" className="mt-3">
                 <div className="space-y-3">
-                  <div><h3 className="text-sm font-semibold text-foreground">Etapas da Jornada</h3><p className="text-xs text-muted-foreground">Defina a sequência de etapas</p></div>
+                  <div><h3 className="text-sm font-semibold text-foreground">Etapas da Jornada</h3><p className="text-xs text-muted-foreground">Sequência padrão (configurável por jornada)</p></div>
                   <div className="space-y-1.5">{defaultSteps.map((item, i) => (
                     <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/20">
                       <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab" />
@@ -212,7 +300,7 @@ export default function EditorNoCode() {
               </TabsContent>
 
               <TabsContent value="metas" className="mt-3">
-                <p className="text-xs text-muted-foreground">Editor de metas (em breve)</p>
+                <EditableMetasList items={selected.metas} onChange={items => updateLine({ metas: items })} />
               </TabsContent>
 
               <TabsContent value="proms" className="mt-3 space-y-6">
@@ -221,16 +309,16 @@ export default function EditorNoCode() {
               </TabsContent>
 
               <TabsContent value="tarefas" className="mt-3">
-                <p className="text-xs text-muted-foreground">Editor de tarefas (em breve)</p>
+                <p className="text-xs text-muted-foreground">{selected.tarefasPadrao.length} tarefas padrão configuradas. Edição detalhada em breve.</p>
               </TabsContent>
               <TabsContent value="automacoes" className="mt-3">
-                <p className="text-xs text-muted-foreground">Editor de automações (em breve)</p>
+                <p className="text-xs text-muted-foreground">{selected.automacoes.length} automações ({selected.automacoes.filter(a => a.ativa).length} ativas). Edição detalhada em breve.</p>
               </TabsContent>
               <TabsContent value="alertas" className="mt-3">
-                <p className="text-xs text-muted-foreground">Editor de alertas (em breve)</p>
+                <p className="text-xs text-muted-foreground">{selected.alertas.length} alertas configurados. Edição detalhada em breve.</p>
               </TabsContent>
               <TabsContent value="bi" className="mt-3">
-                <p className="text-xs text-muted-foreground">Editor de indicadores BI (em breve)</p>
+                <p className="text-xs text-muted-foreground">{(selected.indicadoresBI || []).length} indicadores. Edição detalhada em breve.</p>
               </TabsContent>
             </ScrollArea>
           </Tabs>
@@ -306,6 +394,48 @@ function EditableStringList({ label, items, onChange }: { label: string; items: 
       </div>
       <div className="flex gap-2">
         <Input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="Adicionar item..." className="h-8 text-sm" onKeyDown={e => e.key === 'Enter' && add()} />
+        <Button size="sm" className="h-8 px-3" onClick={add}><Plus className="h-3 w-3" /></Button>
+      </div>
+    </div>
+  );
+}
+
+function EditableMetasList({ items, onChange }: { items: { parametro: string; operador: string; valor: number; unidade: string }[]; onChange: (items: { parametro: string; operador: string; valor: number; unidade: string }[]) => void }) {
+  const [parametro, setParametro] = useState('');
+  const [operador, setOperador] = useState('<');
+  const [valor, setValor] = useState('');
+  const [unidade, setUnidade] = useState('');
+  const add = () => {
+    if (!parametro.trim() || !valor.trim()) return;
+    onChange([...items, { parametro: parametro.trim(), operador, valor: Number(valor), unidade: unidade.trim() }]);
+    setParametro(''); setValor(''); setUnidade('');
+  };
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+  return (
+    <div className="space-y-3">
+      <Label className="text-xs font-semibold">Metas Clínicas</Label>
+      <div className="space-y-1">
+        {items.map((m, i) => (
+          <div key={i} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/20 group text-xs">
+            <span className="flex-1 text-foreground">{m.parametro}</span>
+            <span className="font-mono text-muted-foreground">{m.operador} {m.valor} {m.unidade}</span>
+            <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => remove(i)}>
+              <Trash2 className="h-3 w-3 text-destructive" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-[1fr_60px_80px_80px_auto] gap-2">
+        <Input value={parametro} onChange={e => setParametro(e.target.value)} placeholder="Parâmetro" className="h-8 text-xs" />
+        <select value={operador} onChange={e => setOperador(e.target.value)} className="h-8 text-xs rounded-md border border-input bg-background px-2">
+          <option value="<">{'<'}</option>
+          <option value="<=">{'<='}</option>
+          <option value=">">{'>'}</option>
+          <option value=">=">{'>='}</option>
+          <option value="=">=</option>
+        </select>
+        <Input value={valor} onChange={e => setValor(e.target.value)} placeholder="Valor" type="number" className="h-8 text-xs" />
+        <Input value={unidade} onChange={e => setUnidade(e.target.value)} placeholder="Unidade" className="h-8 text-xs" />
         <Button size="sm" className="h-8 px-3" onClick={add}><Plus className="h-3 w-3" /></Button>
       </div>
     </div>

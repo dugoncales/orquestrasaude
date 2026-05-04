@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCareLines } from '@/hooks/useCareLines';
 import { usePatients } from '@/hooks/usePatients';
 import { mapCareLine, parseGoals, riskLevel } from '@/lib/db-helpers';
@@ -49,6 +50,7 @@ function exportCSV(lines: CareLine[]) {
 }
 
 export default function LinhasDeCuidado() {
+  const navigate = useNavigate();
   const { data: careLinesData, isLoading: loadingLines } = useCareLines();
   const { data: patientsData, isLoading: loadingPatients } = usePatients();
   const [selectedLine, setSelectedLine] = useState<CareLine | null>(null);
@@ -106,7 +108,7 @@ export default function LinhasDeCuidado() {
           <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={() => exportCSV(filteredLines)}>
             <Download className="h-3 w-3" /> Exportar
           </Button>
-          <Button size="sm" className="gap-1" onClick={() => toast.success('Nova linha de cuidado (em breve)')}>
+          <Button size="sm" className="gap-1" onClick={() => navigate('/editor')}>
             <Plus className="h-4 w-4" /> Nova Linha
           </Button>
         </div>
