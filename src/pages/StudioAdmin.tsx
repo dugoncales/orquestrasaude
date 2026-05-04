@@ -447,26 +447,42 @@ export default function StudioAdmin() {
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">
-          <div className="rounded-xl border border-border overflow-hidden">
-            <Table className="table-premium">
-              <TableHeader><TableRow>
-                <TableHead>Data/Hora</TableHead>
-                <TableHead>Usuário</TableHead>
-                <TableHead>Ação</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {mockAudit.map((a, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">{a.date}</TableCell>
-                    <TableCell className="text-sm font-medium">{a.user}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{a.action}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {!isAdmin ? (
+            <p className="text-xs text-muted-foreground">Apenas administradores e gestores podem visualizar a trilha de auditoria.</p>
+          ) : loadingAudit ? <Skeleton className="h-40 w-full" /> : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <Table className="table-premium">
+                <TableHeader><TableRow>
+                  <TableHead>Data/Hora</TableHead>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead>Tabela</TableHead>
+                  <TableHead>Ação</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {(auditLogs || []).length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-6">Nenhum registro de auditoria</TableCell></TableRow>
+                  ) : (auditLogs || []).map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                        {new Date(a.created_at).toLocaleString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{a.user_email || '—'}</TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">{a.table_name}</TableCell>
+                      <TableCell>
+                        <Badge variant={a.action === 'DELETE' ? 'destructive' : a.action === 'INSERT' ? 'default' : 'secondary'} className="text-[10px]">
+                          {a.action}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
+
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
   );
 }
