@@ -19,7 +19,6 @@ import { isOutOfTarget } from '@/components/shared/GoalProgress';
 import { formatDateBR, getInitials } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { AnswerQuestionnaireDialog } from '@/components/dialogs/AnswerQuestionnaireDialog';
-import { useNavigate } from 'react-router-dom';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -67,7 +66,6 @@ export default function DashboardPaciente() {
 
   const [selectedJourneyId, setSelectedJourneyId] = useState<string>('');
   const [answeringQ, setAnsweringQ] = useState<{ responseId: string; questionnaireId: string; name?: string } | null>(null);
-  const navigate = useNavigate();
   const activeJourney = journeys.find(j => j.id === selectedJourneyId) || journeys[0];
   const activeJourneySteps = useMemo(
     () => activeJourney
