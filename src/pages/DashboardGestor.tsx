@@ -93,6 +93,42 @@ export default function DashboardGestor() {
     .sort((a, b) => (b.score_risco || 0) - (a.score_risco || 0))
     .slice(0, 5);
 
+  // Insights derivados de dados reais
+  const aiInsights = useMemo(() => {
+    const out: { id: string; severidade: 'critical' | 'warning'; mensagem: string }[] = [];
+    // 1. Linhas com pior adesão
+    const worstLine = [...careLines].filter(l => l.patientCount > 0).sort((a, b) => a.avgAdherence - b.avgAdherence)[0];
+    if (worstLine && worstLine.avgAdherence < 70) {
+      out.push({ id: 'l1', severidade: worstLine.avgAdherence < 50 ? 'critical' : 'warning',
+        mensagem: `Linha "${worstLine.name}" com adesão de ${worstLine.avgAdherence}% (${worstLine.patientCount} pacientes). Avaliar plano de retomada.` });
+    }
+    // 2. Pacientes em atraso (>60d sem retorno)
+    const atrasados = patients.filter(p => (p.dias_sem_retorno || 0) > 60);
+    if (atrasados.length > 0) {
+      out.push({ id: 'l2', severidade: atrasados.length > 5 ? 'critical' : 'warning',
+        mensagem: `${atrasados.length} paciente(s) sem retorno há mais de 60 dias. Considere busca ativa.` });
+    }
+    // 3. Extrações IA pendentes de revisão
+    const pendingExtractions = (extractionsData || []).length;
+    if (pendingExtractions > 0) {
+      out.push({ id: 'l3', severidade: 'warning',
+        mensagem: `${pendingExtractions} extração(ões) IA aguardando revisão na IA de Planilhas.` });
+    }
+    // 4. Pacientes críticos sem agendamento
+    const criticos = patients.filter(p => riskLevel(p) === 'critico');
+    const criticosSemAgenda = criticos.filter(p => !allAppointments.some(a => a.patient_id === p.id && a.status === 'agendada'));
+    if (criticosSemAgenda.length > 0) {
+      out.push({ id: 'l4', severidade: 'critical',
+        mensagem: `${criticosSemAgenda.length} paciente(s) críticos sem consulta agendada. Recomenda-se priorização.` });
+    }
+    // 5. Alertas críticos não lidos
+    if (criticalAlerts > 0) {
+      out.push({ id: 'l5', severidade: 'critical',
+        mensagem: `${criticalAlerts} alerta(s) crítico(s) não lidos no painel de alertas.` });
+    }
+    return out.slice(0, 4);
+  }, [careLines, patients, extractionsData, allAppointments, criticalAlerts]);
+
   const today = new Date();
   const dateStr = today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -285,22 +321,26 @@ export default function DashboardGestor() {
               <p className="text-[10px] text-muted-foreground">Análises agregadas geradas automaticamente</p>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 md:grid-cols-2">
-                {mockAIInsights.map(insight => (
-                  <div key={insight.id} className={`rounded-xl p-3 border text-xs leading-relaxed ${
-                    insight.severidade === 'critical'
-                      ? 'border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5 text-foreground'
-                      : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 text-foreground'
-                  }`}>
-                    <div className="flex items-start gap-2">
-                      <Sparkles className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${
-                        insight.severidade === 'critical' ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--warning))]'
-                      }`} />
-                      <span>{insight.mensagem}</span>
+              {aiInsights.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">Nenhum insight relevante no momento. Tudo dentro dos parâmetros esperados.</p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {aiInsights.map(insight => (
+                    <div key={insight.id} className={`rounded-xl p-3 border text-xs leading-relaxed ${
+                      insight.severidade === 'critical'
+                        ? 'border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5 text-foreground'
+                        : 'border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 text-foreground'
+                    }`}>
+                      <div className="flex items-start gap-2">
+                        <Sparkles className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${
+                          insight.severidade === 'critical' ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--warning))]'
+                        }`} />
+                        <span>{insight.mensagem}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
