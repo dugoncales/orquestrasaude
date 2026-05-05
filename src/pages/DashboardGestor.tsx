@@ -20,13 +20,7 @@ import { parseGoals, riskLevel, mapCareLine } from '@/lib/db-helpers';
 import { isOutOfTarget } from '@/components/shared/GoalProgress';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-
-const mockAIInsights = [
-  { id: '1', severidade: 'critical', mensagem: '3 pacientes com HbA1c > 9% sem consulta nos últimos 30 dias. Recomenda-se agendamento prioritário.' },
-  { id: '2', severidade: 'warning', mensagem: 'Tempo médio na etapa "Plano Terapêutico" está 40% acima do SLA. Avaliar gargalos operacionais.' },
-  { id: '3', severidade: 'warning', mensagem: '68% dos pacientes com depressão não completaram PHQ-9 no último trimestre.' },
-  { id: '4', severidade: 'critical', mensagem: 'Roberto Almeida Lima: TFG em queda progressiva (38 mL/min). Risco de evolução para DRC G4.' },
-];
+import { useClinicalExtractions } from '@/hooks/useClinicalExtractionsDb';
 
 const stageTimingData = [
   { name: 'Elegibilidade', media: 2, sla: 3 },
@@ -59,6 +53,7 @@ export default function DashboardGestor() {
   const { data: allStepsData } = useAllJourneySteps();
   const { data: alertsData } = useAlerts();
   const { data: careLinesData } = useCareLines();
+  const { data: extractionsData } = useClinicalExtractions({ applied: false, limit: 50 });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
 
