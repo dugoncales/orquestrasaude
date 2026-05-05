@@ -19,6 +19,7 @@ import IAplanilhas from "./pages/IAplanilhas";
 import EditorNoCode from "./pages/EditorNoCode";
 import StudioAdmin from "./pages/StudioAdmin";
 import AuditLog from "./pages/AuditLog";
+import Alertas from "./pages/Alertas";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -57,6 +58,7 @@ const App = () => (
                       <Route path="/editor" element={<EditorNoCode />} />
                       <Route path="/configuracoes" element={<StudioAdmin />} />
                       <Route path="/auditoria" element={<AuditLog />} />
+                      <Route path="/alertas" element={<Alertas />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AppLayout>

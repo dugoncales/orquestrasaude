@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, Route, GitBranch, Calendar, FlaskConical,
-  ClipboardList, BarChart3, Brain, Blocks, Shield, ScrollText
+  ClipboardList, BarChart3, Brain, Blocks, Shield, ScrollText, Bell,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
