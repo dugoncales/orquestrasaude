@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, Route, GitBranch, Calendar, FlaskConical,
-  ClipboardList, BarChart3, Brain, Blocks, Shield, ScrollText
+  ClipboardList, BarChart3, Brain, Blocks, Shield, ScrollText, Bell,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -33,6 +33,7 @@ const menuByRole: Record<string, NavItem[]> = {
     { title: 'Consultas', url: '/consultas', icon: Calendar, group: 'core' },
     { title: 'Exames', url: '/exames', icon: FlaskConical, group: 'core' },
     { title: 'Questionários', url: '/questionarios', icon: ClipboardList, group: 'core' },
+    { title: 'Alertas', url: '/alertas', icon: Bell, group: 'core' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
     { title: 'IA de Planilhas', url: '/ia', icon: Brain, group: 'analysis' },
   ],
@@ -40,6 +41,7 @@ const menuByRole: Record<string, NavItem[]> = {
     { title: 'Dashboard', url: '/', icon: LayoutDashboard, group: 'core' },
     { title: 'Pacientes', url: '/pacientes', icon: Users, group: 'core' },
     { title: 'Linhas de Cuidado', url: '/linhas-de-cuidado', icon: GitBranch, group: 'core' },
+    { title: 'Alertas', url: '/alertas', icon: Bell, group: 'core' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
     { title: 'IA de Planilhas', url: '/ia', icon: Brain, group: 'analysis' },
     { title: 'Auditoria', url: '/auditoria', icon: ScrollText, group: 'admin' },

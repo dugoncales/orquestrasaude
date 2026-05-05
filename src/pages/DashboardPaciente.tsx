@@ -18,6 +18,7 @@ import { parseGoals, mapCareLine, mapStep } from '@/lib/db-helpers';
 import { isOutOfTarget } from '@/components/shared/GoalProgress';
 import { formatDateBR, getInitials } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { AnswerQuestionnaireDialog } from '@/components/dialogs/AnswerQuestionnaireDialog';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -64,6 +65,7 @@ export default function DashboardPaciente() {
   const orientacoes = orientacoesData || [];
 
   const [selectedJourneyId, setSelectedJourneyId] = useState<string>('');
+  const [answeringQ, setAnsweringQ] = useState<{ responseId: string; questionnaireId: string; name?: string } | null>(null);
   const activeJourney = journeys.find(j => j.id === selectedJourneyId) || journeys[0];
   const activeJourneySteps = useMemo(
     () => activeJourney
@@ -317,7 +319,11 @@ export default function DashboardPaciente() {
                     <p className="text-sm font-medium text-foreground">Nos conte como você está</p>
                     <p className="text-xs text-muted-foreground">~3 min para responder</p>
                   </div>
-                  <Button size="sm" className="h-10 px-5 rounded-xl text-sm font-medium">
+                  <Button
+                    size="sm"
+                    className="h-10 px-5 rounded-xl text-sm font-medium"
+                    onClick={() => setAnsweringQ({ responseId: q.id, questionnaireId: q.questionnaire_id, name: 'Questionário' })}
+                  >
                     Responder
                   </Button>
                 </CardContent>
@@ -420,6 +426,16 @@ export default function DashboardPaciente() {
           </div>
         )}
       </div>
+
+      {answeringQ && (
+        <AnswerQuestionnaireDialog
+          open={!!answeringQ}
+          onOpenChange={(o) => !o && setAnsweringQ(null)}
+          responseId={answeringQ.responseId}
+          questionnaireId={answeringQ.questionnaireId}
+          questionnaireName={answeringQ.name}
+        />
+      )}
     </div>
   );
 }
