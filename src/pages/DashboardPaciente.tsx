@@ -428,6 +428,16 @@ export default function DashboardPaciente() {
           </div>
         )}
       </div>
+
+      {answeringQ && (
+        <AnswerQuestionnaireDialog
+          open={!!answeringQ}
+          onOpenChange={(o) => !o && setAnsweringQ(null)}
+          responseId={answeringQ.responseId}
+          questionnaireId={answeringQ.questionnaireId}
+          questionnaireName={answeringQ.name}
+        />
+      )}
     </div>
   );
 }
