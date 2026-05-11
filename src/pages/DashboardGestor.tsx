@@ -127,6 +127,8 @@ export default function DashboardGestor() {
     return out.slice(0, 4);
   }, [careLines, patients, extractionsData, allAppointments, criticalAlerts]);
 
+  if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
+
   const today = new Date();
   const dateStr = today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
