@@ -55,8 +55,6 @@ export default function DashboardGestor() {
   const { data: careLinesData } = useCareLines();
   const { data: extractionsData } = useClinicalExtractions({ applied: false, limit: 50 });
 
-  if (isLoading) return <div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-60 w-full" /></div>;
-
   const patients = patientsData || [];
   const allAppointments = appointmentsData || [];
   const allTasks = tasksData || [];
