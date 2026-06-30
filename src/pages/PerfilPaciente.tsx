@@ -26,7 +26,12 @@ import { PatientExtractionsList } from '@/components/shared/PatientExtractionsLi
 import { PatientFormDialog } from '@/components/dialogs/PatientFormDialog';
 import { RegisterParameterDialog } from '@/components/dialogs/RegisterParameterDialog';
 import { AddOrientacaoDialog } from '@/components/dialogs/AddOrientacaoDialog';
+import { AppointmentUpdateDialog } from '@/components/dialogs/AppointmentUpdateDialog';
+import { ExamResultDialog } from '@/components/dialogs/ExamResultDialog';
+import { TaskUpdateDialog } from '@/components/dialogs/TaskUpdateDialog';
 import { useOrientacoes } from '@/hooks/useOrientacoes';
+import { useMarkAlertRead } from '@/hooks/useAlerts';
+import { ruleFor } from '@/lib/care-line-config';
 import { Pencil, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
