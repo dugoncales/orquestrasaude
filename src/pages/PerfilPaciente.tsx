@@ -230,28 +230,69 @@ export default function PerfilPaciente() {
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {journeys.map(j => {
             const line = findCareLineByRef(careLines, j.care_line_id);
-            const lineGoals = goals.filter(g => g.careLineId === (line?.slug || j.care_line_id));
+            const slug = line?.slug || j.care_line_id;
+            const lineGoals = goals.filter(g => g.careLineId === slug);
             const outGoals = lineGoals.filter(g => isOutOfTarget(g));
+            const rule = ruleFor(slug);
+            const keyField = rule?.primaryField;
+            const keyGoal = keyField ? lineGoals.find(g => g.field === keyField) : undefined;
+            const latestKey = keyField
+              ? [...records].filter(r => r.field === keyField).sort((a, b) => b.date.localeCompare(a.date))[0]
+              : undefined;
+            const keyOut = keyGoal ? isOutOfTarget(keyGoal) : false;
 
             return (
-              <Card key={j.id} className="border-l-2 cursor-pointer hover:bg-muted/30 transition-colors" style={{ borderLeftColor: line?.color }} onClick={() => navigate('/jornadas')}>
+              <Card key={j.id} className="border-l-2" style={{ borderLeftColor: line?.color }}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold" style={{ color: line?.color }}>{line?.name}</p>
                     <StatusChip status={j.status === 'ativa' ? 'em_andamento' : 'concluido'} className="text-[9px]" />
                   </div>
+                  {keyGoal && (
+                    <div className="rounded-md border border-border/60 p-2 bg-muted/20">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Indicador-chave</span>
+                        <button
+                          type="button"
+                          className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setParamField(keyField);
+                            setParamCareLine(line?.id || null);
+                            setOpenParam(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" /> Registrar
+                        </button>
+                      </div>
+                      <div className="flex items-baseline justify-between mt-0.5">
+                        <span className="text-sm font-semibold text-foreground">{keyGoal.label}</span>
+                        <span className={cn('font-mono text-sm', keyOut ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--success))]')}>
+                          {latestKey ? Number(latestKey.value) : keyGoal.currentValue}{keyGoal.unit}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Meta {keyGoal.operator} {keyGoal.target}{keyGoal.unit}
+                        {latestKey ? ` · em ${latestKey.date}` : ' · sem registro'}
+                      </p>
+                    </div>
+                  )}
                   {outGoals.length > 0 && (
                     <div className="space-y-0.5">
-                      {outGoals.map(g => (
+                      {outGoals.filter(g => g.field !== keyField).map(g => (
                         <p key={g.field} className="text-[10px] text-[hsl(var(--destructive))]">
                           ✗ {g.label}: {g.currentValue}{g.unit} (meta {g.operator} {g.target})
                         </p>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-1 text-[10px] text-primary">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                    onClick={() => navigate('/jornadas')}
+                  >
                     Ver jornada <ArrowRight className="h-3 w-3" />
-                  </div>
+                  </button>
                 </CardContent>
               </Card>
             );
