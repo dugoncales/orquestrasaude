@@ -26,7 +26,12 @@ import { PatientExtractionsList } from '@/components/shared/PatientExtractionsLi
 import { PatientFormDialog } from '@/components/dialogs/PatientFormDialog';
 import { RegisterParameterDialog } from '@/components/dialogs/RegisterParameterDialog';
 import { AddOrientacaoDialog } from '@/components/dialogs/AddOrientacaoDialog';
+import { AppointmentUpdateDialog } from '@/components/dialogs/AppointmentUpdateDialog';
+import { ExamResultDialog } from '@/components/dialogs/ExamResultDialog';
+import { TaskUpdateDialog } from '@/components/dialogs/TaskUpdateDialog';
 import { useOrientacoes } from '@/hooks/useOrientacoes';
+import { useMarkAlertRead } from '@/hooks/useAlerts';
+import { ruleFor } from '@/lib/care-line-config';
 import { Pencil, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -40,6 +45,7 @@ type TimelineEvent = {
   label: string;
   status: string;
   meta?: string;
+  payload: any;
 };
 
 const typeIcon: Record<TimelineEventType, typeof Calendar> = {
@@ -78,9 +84,15 @@ export default function PerfilPaciente() {
   const [filter, setFilter] = useState<TimelineFilter>('todos');
   const [openEdit, setOpenEdit] = useState(false);
   const [openParam, setOpenParam] = useState(false);
+  const [paramField, setParamField] = useState<string | undefined>(undefined);
+  const [paramCareLine, setParamCareLine] = useState<string | null>(null);
   const [openOrient, setOpenOrient] = useState(false);
+  const [openAppt, setOpenAppt] = useState<any | null>(null);
+  const [openExam, setOpenExam] = useState<any | null>(null);
+  const [openTask, setOpenTask] = useState<any | null>(null);
   const { data: orientacoesData } = useOrientacoes(id);
   const orientacoes = orientacoesData || [];
+  const markAlertRead = useMarkAlertRead();
 
   const journeys = journeysData || [];
   const appointments = appointmentsData || [];
@@ -99,6 +111,7 @@ export default function PerfilPaciente() {
         label: a.tipo,
         status: a.status,
         meta: a.profissional,
+        payload: a,
       })),
       ...exams.map(e => ({
         id: `e-${e.id}`,
@@ -106,6 +119,7 @@ export default function PerfilPaciente() {
         type: 'exame' as const,
         label: e.tipo,
         status: e.status,
+        payload: e,
       })),
       ...tasks.map(t => ({
         id: `t-${t.id}`,
@@ -114,6 +128,7 @@ export default function PerfilPaciente() {
         label: t.descricao,
         status: t.status,
         meta: t.responsavel,
+        payload: t,
       })),
       ...alerts.map(a => ({
         id: `a-${a.id}`,
@@ -121,6 +136,7 @@ export default function PerfilPaciente() {
         type: 'alerta' as const,
         label: a.mensagem,
         status: a.severidade,
+        payload: a,
       })),
     ];
     return evts.sort((a, b) => b.date.localeCompare(a.date));
@@ -214,28 +230,69 @@ export default function PerfilPaciente() {
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {journeys.map(j => {
             const line = findCareLineByRef(careLines, j.care_line_id);
-            const lineGoals = goals.filter(g => g.careLineId === (line?.slug || j.care_line_id));
+            const slug = line?.slug || j.care_line_id;
+            const lineGoals = goals.filter(g => g.careLineId === slug);
             const outGoals = lineGoals.filter(g => isOutOfTarget(g));
+            const rule = ruleFor(slug);
+            const keyField = rule?.primaryField;
+            const keyGoal = keyField ? lineGoals.find(g => g.field === keyField) : undefined;
+            const latestKey = keyField
+              ? [...records].filter(r => r.field === keyField).sort((a, b) => b.date.localeCompare(a.date))[0]
+              : undefined;
+            const keyOut = keyGoal ? isOutOfTarget(keyGoal) : false;
 
             return (
-              <Card key={j.id} className="border-l-2 cursor-pointer hover:bg-muted/30 transition-colors" style={{ borderLeftColor: line?.color }} onClick={() => navigate('/jornadas')}>
+              <Card key={j.id} className="border-l-2" style={{ borderLeftColor: line?.color }}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold" style={{ color: line?.color }}>{line?.name}</p>
                     <StatusChip status={j.status === 'ativa' ? 'em_andamento' : 'concluido'} className="text-[9px]" />
                   </div>
+                  {keyGoal && (
+                    <div className="rounded-md border border-border/60 p-2 bg-muted/20">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Indicador-chave</span>
+                        <button
+                          type="button"
+                          className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setParamField(keyField);
+                            setParamCareLine(line?.id || null);
+                            setOpenParam(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" /> Registrar
+                        </button>
+                      </div>
+                      <div className="flex items-baseline justify-between mt-0.5">
+                        <span className="text-sm font-semibold text-foreground">{keyGoal.label}</span>
+                        <span className={cn('font-mono text-sm', keyOut ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--success))]')}>
+                          {latestKey ? Number(latestKey.value) : keyGoal.currentValue}{keyGoal.unit}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Meta {keyGoal.operator} {keyGoal.target}{keyGoal.unit}
+                        {latestKey ? ` · em ${latestKey.date}` : ' · sem registro'}
+                      </p>
+                    </div>
+                  )}
                   {outGoals.length > 0 && (
                     <div className="space-y-0.5">
-                      {outGoals.map(g => (
+                      {outGoals.filter(g => g.field !== keyField).map(g => (
                         <p key={g.field} className="text-[10px] text-[hsl(var(--destructive))]">
                           ✗ {g.label}: {g.currentValue}{g.unit} (meta {g.operator} {g.target})
                         </p>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-1 text-[10px] text-primary">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                    onClick={() => navigate('/jornadas')}
+                  >
                     Ver jornada <ArrowRight className="h-3 w-3" />
-                  </div>
+                  </button>
                 </CardContent>
               </Card>
             );
@@ -339,8 +396,22 @@ export default function PerfilPaciente() {
                   <div className="space-y-0">
                     {group.items.map(evt => {
                       const Icon = typeIcon[evt.type];
+                      const onClick = () => {
+                        if (evt.type === 'consulta') setOpenAppt(evt.payload);
+                        else if (evt.type === 'exame') setOpenExam(evt.payload);
+                        else if (evt.type === 'tarefa') setOpenTask(evt.payload);
+                        else if (evt.type === 'alerta') {
+                          if (!evt.payload.lido) markAlertRead.mutate(evt.payload.id);
+                        }
+                      };
                       return (
-                        <div key={evt.id} className="flex items-start gap-3 py-2.5 border-l-2 border-border pl-4 relative">
+                        <button
+                          key={evt.id}
+                          type="button"
+                          onClick={onClick}
+                          className="w-full text-left flex items-start gap-3 py-2.5 border-l-2 border-border pl-4 relative hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:outline-none rounded-r-md transition-colors"
+                          aria-label={`${typeLabel[evt.type]}: ${evt.label} — abrir`}
+                        >
                           <div className={cn(
                             'absolute -left-[14px] top-2 h-7 w-7 rounded-full border-2 border-background flex items-center justify-center',
                             typeAccent[evt.type]
@@ -360,7 +431,7 @@ export default function PerfilPaciente() {
                             </p>
                           </div>
                           <StatusChip status={evt.status} className="text-[9px] flex-shrink-0" />
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -411,8 +482,39 @@ export default function PerfilPaciente() {
       </Card>
 
       <PatientFormDialog open={openEdit} onOpenChange={setOpenEdit} patient={patient} />
-      <RegisterParameterDialog open={openParam} onOpenChange={setOpenParam} patientId={patient.id} />
+      <RegisterParameterDialog
+        open={openParam}
+        onOpenChange={(o) => { setOpenParam(o); if (!o) { setParamField(undefined); setParamCareLine(null); } }}
+        patientId={patient.id}
+        defaultField={paramField}
+        careLineId={paramCareLine}
+      />
       <AddOrientacaoDialog open={openOrient} onOpenChange={setOpenOrient} patientId={patient.id} />
+      {openAppt && (
+        <AppointmentUpdateDialog
+          open={!!openAppt}
+          onOpenChange={(o) => !o && setOpenAppt(null)}
+          appointment={openAppt}
+        />
+      )}
+      {openExam && (
+        <ExamResultDialog
+          open={!!openExam}
+          onOpenChange={(o) => !o && setOpenExam(null)}
+          examId={openExam.id}
+          currentStatus={openExam.status}
+          patientId={openExam.patient_id}
+          patientName={openExam.patient_name}
+          careLineId={openExam.care_line_id}
+        />
+      )}
+      {openTask && (
+        <TaskUpdateDialog
+          open={!!openTask}
+          onOpenChange={(o) => !o && setOpenTask(null)}
+          task={openTask}
+        />
+      )}
     </div>
   );
 }
