@@ -396,8 +396,22 @@ export default function PerfilPaciente() {
                   <div className="space-y-0">
                     {group.items.map(evt => {
                       const Icon = typeIcon[evt.type];
+                      const onClick = () => {
+                        if (evt.type === 'consulta') setOpenAppt(evt.payload);
+                        else if (evt.type === 'exame') setOpenExam(evt.payload);
+                        else if (evt.type === 'tarefa') setOpenTask(evt.payload);
+                        else if (evt.type === 'alerta') {
+                          if (!evt.payload.lido) markAlertRead.mutate(evt.payload.id);
+                        }
+                      };
                       return (
-                        <div key={evt.id} className="flex items-start gap-3 py-2.5 border-l-2 border-border pl-4 relative">
+                        <button
+                          key={evt.id}
+                          type="button"
+                          onClick={onClick}
+                          className="w-full text-left flex items-start gap-3 py-2.5 border-l-2 border-border pl-4 relative hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:outline-none rounded-r-md transition-colors"
+                          aria-label={`${typeLabel[evt.type]}: ${evt.label} — abrir`}
+                        >
                           <div className={cn(
                             'absolute -left-[14px] top-2 h-7 w-7 rounded-full border-2 border-background flex items-center justify-center',
                             typeAccent[evt.type]
@@ -417,7 +431,7 @@ export default function PerfilPaciente() {
                             </p>
                           </div>
                           <StatusChip status={evt.status} className="text-[9px] flex-shrink-0" />
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -468,8 +482,39 @@ export default function PerfilPaciente() {
       </Card>
 
       <PatientFormDialog open={openEdit} onOpenChange={setOpenEdit} patient={patient} />
-      <RegisterParameterDialog open={openParam} onOpenChange={setOpenParam} patientId={patient.id} />
+      <RegisterParameterDialog
+        open={openParam}
+        onOpenChange={(o) => { setOpenParam(o); if (!o) { setParamField(undefined); setParamCareLine(null); } }}
+        patientId={patient.id}
+        defaultField={paramField}
+        careLineId={paramCareLine}
+      />
       <AddOrientacaoDialog open={openOrient} onOpenChange={setOpenOrient} patientId={patient.id} />
+      {openAppt && (
+        <AppointmentUpdateDialog
+          open={!!openAppt}
+          onOpenChange={(o) => !o && setOpenAppt(null)}
+          appointment={openAppt}
+        />
+      )}
+      {openExam && (
+        <ExamResultDialog
+          open={!!openExam}
+          onOpenChange={(o) => !o && setOpenExam(null)}
+          examId={openExam.id}
+          currentStatus={openExam.status}
+          patientId={openExam.patient_id}
+          patientName={openExam.patient_name}
+          careLineId={openExam.care_line_id}
+        />
+      )}
+      {openTask && (
+        <TaskUpdateDialog
+          open={!!openTask}
+          onOpenChange={(o) => !o && setOpenTask(null)}
+          task={openTask}
+        />
+      )}
     </div>
   );
 }
