@@ -45,6 +45,7 @@ type TimelineEvent = {
   label: string;
   status: string;
   meta?: string;
+  payload: any;
 };
 
 const typeIcon: Record<TimelineEventType, typeof Calendar> = {
@@ -83,9 +84,15 @@ export default function PerfilPaciente() {
   const [filter, setFilter] = useState<TimelineFilter>('todos');
   const [openEdit, setOpenEdit] = useState(false);
   const [openParam, setOpenParam] = useState(false);
+  const [paramField, setParamField] = useState<string | undefined>(undefined);
+  const [paramCareLine, setParamCareLine] = useState<string | null>(null);
   const [openOrient, setOpenOrient] = useState(false);
+  const [openAppt, setOpenAppt] = useState<any | null>(null);
+  const [openExam, setOpenExam] = useState<any | null>(null);
+  const [openTask, setOpenTask] = useState<any | null>(null);
   const { data: orientacoesData } = useOrientacoes(id);
   const orientacoes = orientacoesData || [];
+  const markAlertRead = useMarkAlertRead();
 
   const journeys = journeysData || [];
   const appointments = appointmentsData || [];
@@ -104,6 +111,7 @@ export default function PerfilPaciente() {
         label: a.tipo,
         status: a.status,
         meta: a.profissional,
+        payload: a,
       })),
       ...exams.map(e => ({
         id: `e-${e.id}`,
@@ -111,6 +119,7 @@ export default function PerfilPaciente() {
         type: 'exame' as const,
         label: e.tipo,
         status: e.status,
+        payload: e,
       })),
       ...tasks.map(t => ({
         id: `t-${t.id}`,
@@ -119,6 +128,7 @@ export default function PerfilPaciente() {
         label: t.descricao,
         status: t.status,
         meta: t.responsavel,
+        payload: t,
       })),
       ...alerts.map(a => ({
         id: `a-${a.id}`,
@@ -126,6 +136,7 @@ export default function PerfilPaciente() {
         type: 'alerta' as const,
         label: a.mensagem,
         status: a.severidade,
+        payload: a,
       })),
     ];
     return evts.sort((a, b) => b.date.localeCompare(a.date));
