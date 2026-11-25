@@ -29,6 +29,7 @@ const routeLabels: Record<string, string> = {
   '/exames': 'Exames',
   '/questionarios': 'Questionários',
   '/bi': 'BI Assistencial',
+  '/indicadores-consultas': 'Indicadores de Consultas',
   '/ia': 'IA de Planilhas',
   '/editor': 'Editor No-Code',
 };

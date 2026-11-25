@@ -14,6 +14,7 @@ import LinhasDeCuidado from "./pages/LinhasDeCuidado";
 import Consultas from "./pages/Consultas";
 import Exames from "./pages/Exames";
 import Questionarios from "./pages/Questionarios";
+import IndicadoresConsultas from './pages/IndicadoresConsultas';
 import BI from "./pages/BI";
 import IAplanilhas from "./pages/IAplanilhas";
 import EditorNoCode from "./pages/EditorNoCode";
@@ -54,6 +55,7 @@ const App = () => (
                       <Route path="/exames" element={<Exames />} />
                       <Route path="/questionarios" element={<Questionarios />} />
                       <Route path="/bi" element={<BI />} />
+                      <Route path="/indicadores-consultas" element={<IndicadoresConsultas />} />
                       <Route path="/ia" element={<IAplanilhas />} />
                       <Route path="/editor" element={<EditorNoCode />} />
                       <Route path="/configuracoes" element={<StudioAdmin />} />

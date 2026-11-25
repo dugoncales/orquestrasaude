@@ -35,6 +35,7 @@ const menuByRole: Record<string, NavItem[]> = {
     { title: 'Questionários', url: '/questionarios', icon: ClipboardList, group: 'core' },
     { title: 'Alertas', url: '/alertas', icon: Bell, group: 'core' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
+    { title: 'Indicadores de Consultas', url: '/indicadores-consultas', icon: BarChart3, group: 'analysis' },
     { title: 'IA de Planilhas', url: '/ia', icon: Brain, group: 'analysis' },
   ],
   manager: [
@@ -43,6 +44,7 @@ const menuByRole: Record<string, NavItem[]> = {
     { title: 'Linhas de Cuidado', url: '/linhas-de-cuidado', icon: GitBranch, group: 'core' },
     { title: 'Alertas', url: '/alertas', icon: Bell, group: 'core' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
+    { title: 'Indicadores de Consultas', url: '/indicadores-consultas', icon: BarChart3, group: 'analysis' },
     { title: 'IA de Planilhas', url: '/ia', icon: Brain, group: 'analysis' },
     { title: 'Auditoria', url: '/auditoria', icon: ScrollText, group: 'admin' },
   ],
@@ -53,6 +55,7 @@ const menuByRole: Record<string, NavItem[]> = {
     { title: 'Editor No-Code', url: '/editor', icon: Blocks, group: 'admin' },
     { title: 'Auditoria', url: '/auditoria', icon: ScrollText, group: 'admin' },
     { title: 'BI Assistencial', url: '/bi', icon: BarChart3, group: 'analysis' },
+    { title: 'Indicadores de Consultas', url: '/indicadores-consultas', icon: BarChart3, group: 'analysis' },
   ],
 };
 

@@ -75,6 +75,7 @@ export type Database = {
           profissional: string
           status: string
           tipo: string
+          unidade: string | null
           updated_at: string
         }
         Insert: {
@@ -90,6 +91,7 @@ export type Database = {
           profissional: string
           status?: string
           tipo: string
+          unidade?: string | null
           updated_at?: string
         }
         Update: {
@@ -105,6 +107,7 @@ export type Database = {
           profissional?: string
           status?: string
           tipo?: string
+          unidade?: string | null
           updated_at?: string
         }
         Relationships: [

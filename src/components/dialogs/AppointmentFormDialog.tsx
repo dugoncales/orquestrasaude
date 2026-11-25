@@ -32,6 +32,7 @@ export function AppointmentFormDialog({ open, onOpenChange, defaultPatientId, ca
   const [hora, setHora] = useState('09:00');
   const [careLine, setCareLine] = useState<string>(careLineId || 'none');
   const [obs, setObs] = useState('');
+  const [unidade, setUnidade] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit() {
@@ -48,6 +49,7 @@ export function AppointmentFormDialog({ open, onOpenChange, defaultPatientId, ca
         care_line_id: careLine === 'none' ? null : careLine,
         journey_step_id: journeyStepId || null,
         observacoes: obs || null,
+        unidade: unidade.trim() || null,
       });
       toast.success('Consulta agendada');
       onOpenChange(false);
@@ -90,6 +92,10 @@ export function AppointmentFormDialog({ open, onOpenChange, defaultPatientId, ca
           <div>
             <Label className="text-xs">Profissional</Label>
             <Input value={profissional} onChange={e => setProfissional(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Unidade</Label>
+            <Input value={unidade} onChange={e => setUnidade(e.target.value)} placeholder="Ex: UBS Centro" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
