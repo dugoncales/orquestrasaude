@@ -1136,6 +1136,7 @@ export type Database = {
       }
       current_patient_id: { Args: never; Returns: string }
       find_patient_by_cpf: { Args: { _cpf: string }; Returns: string }
+      has_any_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

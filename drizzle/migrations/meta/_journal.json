@@ -8,6 +8,13 @@
       "when": 1795646750641,
       "tag": "0000_appointments_unidade",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795646846934,
+      "tag": "0001_tighten_catalog_select_policies",
+      "breakpoints": true
     }
   ]
 }
